@@ -1,0 +1,105 @@
+{
+  "name": "@vllnt/convex-wallet",
+  "version": "0.1.0",
+  "description": "Consumable balances and economy ledger with atomic spend and lazy regen, as a Convex component",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/client/index.d.ts",
+      "default": "./dist/client/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "default": "./dist/react/index.js"
+    },
+    "./test": "./src/test.ts",
+    "./_generated/component.js": {
+      "types": "./dist/component/_generated/component.d.ts"
+    },
+    "./_generated/component": {
+      "types": "./dist/component/_generated/component.d.ts"
+    },
+    "./convex.config": {
+      "types": "./dist/component/convex.config.d.ts",
+      "default": "./dist/component/convex.config.js"
+    },
+    "./convex.config.js": {
+      "types": "./dist/component/convex.config.d.ts",
+      "default": "./dist/component/convex.config.js"
+    }
+  },
+  "types": "./dist/client/index.d.ts",
+  "module": "./dist/client/index.js",
+  "scripts": {
+    "build": "tsc --project ./tsconfig.build.json",
+    "build:codegen": "pnpm convex codegen --component-dir ./src/component && pnpm build",
+    "build:clean": "rm -rf dist *.tsbuildinfo && pnpm build:codegen",
+    "typecheck": "tsc --noEmit",
+    "typecheck:ci": "tsc --noEmit --project tsconfig.ci.json",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest --typecheck --clearScreen false",
+    "test:coverage": "vitest run --coverage --coverage.reporter=text",
+    "generate:llms": "node scripts/generate-llms.mjs",
+    "preversion": "pnpm install --frozen-lockfile && pnpm build && pnpm test:coverage && pnpm typecheck && pnpm generate:llms",
+    "prepublishOnly": "npm whoami || npm login",
+    "alpha": "npm version prerelease --preid alpha && npm publish --tag alpha && git push --follow-tags",
+    "release": "npm version patch && npm publish && git push --follow-tags"
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "convex": "^1.41.0",
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^4.1.8",
+    "@vllnt/eslint-config": "^1.0.0",
+    "@vllnt/typescript": "^1.0.0",
+    "convex": "^1.41.0",
+    "convex-test": "^0.0.53",
+    "eslint": "^9.0.0",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.4.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.7",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.8"
+  },
+  "homepage": "https://github.com/vllnt/convex-wallet#readme",
+  "bugs": {
+    "url": "https://github.com/vllnt/convex-wallet/issues"
+  },
+  "author": "bntvllnt",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vllnt/convex-wallet"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "keywords": [
+    "convex",
+    "convex-component",
+    "wallet"
+  ]
+}
