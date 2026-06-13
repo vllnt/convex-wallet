@@ -1,4 +1,5 @@
 <!-- Badges -->
+[![Convex Component](https://img.shields.io/badge/convex-component-EE342F.svg)](https://www.convex.dev/components)
 [![npm](https://img.shields.io/npm/v/@vllnt/convex-wallet.svg)](https://www.npmjs.com/package/@vllnt/convex-wallet)
 [![CI](https://github.com/vllnt/convex-wallet/actions/workflows/ci.yml/badge.svg)](https://github.com/vllnt/convex-wallet/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/@vllnt/convex-wallet.svg)](./LICENSE)
@@ -59,7 +60,7 @@ and expires stale idempotency keys (both idempotent / at-least-once safe).
 pnpm add @vllnt/convex-wallet
 ```
 
-Peer dependency: `convex@^1.36.1`.
+Peer dependency: `convex@^1.41.0`.
 
 ## Usage
 
@@ -164,12 +165,13 @@ The component is **auth-agnostic** and **payment-agnostic**: it never
 authenticates, authorizes, or processes payments. The host resolves identity,
 decides whether a caller may spend, **verifies any IAP / Stripe purchase**, then
 calls in with an opaque `subjectRef` and `currency`. Component tables are
-sandboxed — the host reaches them only through the exported functions.
-`subjectRef` and `currency` are opaque strings; the component never inspects or
-de-references them. Spend and transfer are atomic within the Convex mutation
-transaction, so balances never go negative and grants never double-credit.
+sandboxed — the host reaches them only through the exported functions. Spend and
+transfer are atomic within the Convex mutation transaction, so balances never go
+negative and grants never double-credit.
 
-**Hardening against abuse** (this component guards balances, so it is strict):
+### Hardening
+
+This component guards balances, so it is strict:
 
 - **Amount validation** — every value-moving call rejects non-finite or
   non-positive amounts (`INVALID_AMOUNT`). A negative `spend` can never mint
@@ -208,6 +210,14 @@ Tests run against the real component runtime via `convex-test`
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Author
+
+Built by [bntvllnt](https://github.com/bntvllnt) · [bntvllnt.com](https://bntvllnt.com) · [X @bntvllnt](https://x.com/bntvllnt)
+
+Part of the [@vllnt](https://github.com/vllnt) Convex component fleet — [vllnt.com](https://vllnt.com)
+
+If this is useful, [sponsor the work](https://github.com/sponsors/bntvllnt).
 
 ## License
 

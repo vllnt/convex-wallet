@@ -1,5 +1,7 @@
 # API Reference — @vllnt/convex-wallet
 
+**Compatibility:** `convex@^1.41.0`
+
 Construct the client with the mounted component and optional per-currency config:
 
 ```ts

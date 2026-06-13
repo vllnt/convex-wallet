@@ -8,6 +8,7 @@ const files = [
   "src/shared.ts",
   "src/client/types.ts",
   "src/client/index.ts",
+  "src/react/index.tsx",
   "src/component/schema.ts",
   "src/component/validators.ts",
   "src/component/mutations.ts",
