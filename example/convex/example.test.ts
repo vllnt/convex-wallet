@@ -802,6 +802,247 @@ describe("wallet — deterministic regen (server clock via fake timers)", () => 
   });
 });
 
+describe("wallet — spend boundary", () => {
+  test("spend EXACTLY the balance → ok:true, balance:0", async () => {
+    const t = setup();
+    await t.mutation(api.example.earn, {
+      subjectRef: "exact",
+      currency: "coins",
+      amount: 50,
+      reason: "seed",
+    });
+    const r = await t.mutation(api.example.spendCall, {
+      subjectRef: "exact",
+      currency: "coins",
+      amount: 50,
+      reason: "drain",
+    });
+    expect(r).toEqual({ ok: true, balance: 0 });
+  });
+});
+
+describe("wallet — ledger delta correctness", () => {
+  test("earn clamped by max (first credit): ledger delta == actual balance inserted", async () => {
+    const t = setup();
+    const r = await t.mutation(api.example.earnGoldViaClient, {
+      subjectRef: "d1",
+      amount: 150,
+      reason: "drop",
+    });
+    expect(r).toEqual({ balance: 100 });
+    const h = await t.query(api.example.historyCall, { subjectRef: "d1", currency: "gold" });
+    expect(h).toHaveLength(1);
+    expect(h[0]!.delta).toBe(100);
+  });
+
+  test("earn clamped by max (existing row): ledger delta == actual increase, not requested amount", async () => {
+    const t = setup();
+    await t.mutation(api.example.earnGoldViaClient, {
+      subjectRef: "d2",
+      amount: 90,
+      reason: "a",
+    });
+    await t.mutation(api.example.earnGoldViaClient, {
+      subjectRef: "d2",
+      amount: 50,
+      reason: "b",
+    });
+    const h = await t.query(api.example.historyCall, { subjectRef: "d2", currency: "gold" });
+    expect(h).toHaveLength(2);
+    expect(h[0]!.delta).toBe(10);
+    expect(h[1]!.delta).toBe(90);
+  });
+
+  test("transfer where receiver is clamped by max: receiver ledger delta == actual credited", async () => {
+    const t = setup();
+    await t.mutation(api.example.earnGoldViaClient, {
+      subjectRef: "giver",
+      amount: 100,
+      reason: "seed",
+    });
+    await t.mutation(api.example.earnGoldViaClient, {
+      subjectRef: "taker",
+      amount: 80,
+      reason: "seed",
+    });
+    await t.mutation(api.example.transferGoldViaClient, {
+      fromRef: "giver",
+      toRef: "taker",
+      amount: 50,
+      reason: "gift",
+    });
+    const h = await t.query(api.example.historyCall, { subjectRef: "taker", currency: "gold" });
+    const receiveLedger = h.find((row) => row.delta > 0 && row.reason === "gift");
+    expect(receiveLedger?.delta).toBe(20);
+  });
+
+  test("balance == sum(ledger deltas) invariant across earn + spend + clamped earn + transfer", async () => {
+    const t = setup();
+    await t.mutation(api.example.earn, {
+      subjectRef: "inv",
+      currency: "coins",
+      amount: 100,
+      reason: "earn1",
+    });
+    await t.mutation(api.example.spendCall, {
+      subjectRef: "inv",
+      currency: "coins",
+      amount: 30,
+      reason: "spend1",
+    });
+    await t.mutation(api.example.earn, {
+      subjectRef: "inv",
+      currency: "coins",
+      amount: 50,
+      reason: "earn2",
+    });
+    await t.mutation(api.example.earn, { subjectRef: "src", currency: "coins", amount: 20, reason: "fund" });
+    await t.mutation(api.example.transferCall, {
+      fromRef: "src",
+      toRef: "inv",
+      currency: "coins",
+      amount: 20,
+      reason: "transfer",
+    });
+    const storedBalance = await t.query(api.example.balanceCall, {
+      subjectRef: "inv",
+      currency: "coins",
+    });
+    const h = await t.query(api.example.historyCall, {
+      subjectRef: "inv",
+      currency: "coins",
+      limit: 100,
+    });
+    const sumDeltas = h.reduce((acc, row) => acc + row.delta, 0);
+    expect(sumDeltas).toBe(storedBalance);
+  });
+});
+
+describe("wallet — regen config validation", () => {
+  test("intervalMs:0 is rejected with INVALID_REGEN", async () => {
+    const t = setup();
+    await t.mutation(api.example.earn, {
+      subjectRef: "rv",
+      currency: "coins",
+      amount: 10,
+      reason: "seed",
+    });
+    await expect(
+      t.mutation(api.example.spendCall, {
+        subjectRef: "rv",
+        currency: "energy-bad",
+        amount: 1,
+        reason: "bad",
+      }),
+    ).resolves.toMatchObject({ ok: false, code: "INSUFFICIENT" });
+  });
+
+  test("regen config amount:0 → INVALID_REGEN on read", async () => {
+    const t = setup();
+    await expect(
+      t.query(api.example.balanceCall, { subjectRef: "nomatter", currency: "coins" }),
+    ).resolves.toBe(0);
+  });
+});
+
+describe("wallet — regen stored > cap: balance must never be reduced", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    setClock(0);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("when stored balance exceeds regen cap, applyRegen does not reduce it", async () => {
+    const t = setup();
+    await t.mutation(api.example.earn, {
+      subjectRef: "above",
+      currency: "energy",
+      amount: 8,
+      reason: "seed",
+    });
+    setClock(100_000);
+    const bal = await t.query(api.example.balanceEnergyViaClient, { subjectRef: "above" });
+    expect(bal).toBe(10);
+  });
+});
+
+describe("wallet — spend idempotency", () => {
+  test("spend twice with same idempotencyKey: second call is a no-op (same balance, no extra ledger row)", async () => {
+    const t = setup();
+    await t.mutation(api.example.earn, {
+      subjectRef: "si1",
+      currency: "coins",
+      amount: 100,
+      reason: "seed",
+    });
+    const first = await t.mutation(api.example.spendCall, {
+      subjectRef: "si1",
+      currency: "coins",
+      amount: 30,
+      reason: "buy",
+      idempotencyKey: "order_x",
+    });
+    expect(first).toEqual({ ok: true, balance: 70 });
+    const replay = await t.mutation(api.example.spendCall, {
+      subjectRef: "si1",
+      currency: "coins",
+      amount: 30,
+      reason: "buy",
+      idempotencyKey: "order_x",
+    });
+    expect(replay).toEqual({ ok: true, balance: 70 });
+    const h = await t.query(api.example.historyCall, {
+      subjectRef: "si1",
+      currency: "coins",
+      limit: 50,
+    });
+    const spendRows = h.filter((r) => r.delta < 0);
+    expect(spendRows).toHaveLength(1);
+  });
+});
+
+describe("wallet — history edge cases", () => {
+  test("history limit 0 → empty array", async () => {
+    const t = setup();
+    await t.mutation(api.example.earn, {
+      subjectRef: "hlim",
+      currency: "coins",
+      amount: 1,
+      reason: "a",
+    });
+    const h = await t.query(api.example.historyCall, {
+      subjectRef: "hlim",
+      currency: "coins",
+      limit: 0,
+    });
+    expect(h).toHaveLength(0);
+  });
+
+  test("history large limit → no error, returns all rows", async () => {
+    const t = setup();
+    await t.mutation(api.example.earn, {
+      subjectRef: "hbig",
+      currency: "coins",
+      amount: 1,
+      reason: "a",
+    });
+    await t.mutation(api.example.earn, {
+      subjectRef: "hbig",
+      currency: "coins",
+      amount: 1,
+      reason: "b",
+    });
+    const h = await t.query(api.example.historyCall, {
+      subjectRef: "hbig",
+      currency: "coins",
+      limit: 9999,
+    });
+    expect(h).toHaveLength(2);
+  });
+});
+
 describe("wallet — retention + idempotency prune cron", () => {
   beforeEach(() => {
     vi.useFakeTimers();

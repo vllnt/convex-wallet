@@ -27,6 +27,14 @@ Every value-moving call (`earn` / `grant` / `spend` / `transfer`) **throws
 (rejects `0`, negatives, `NaN`, `Infinity`). A negative `spend` can never mint
 funds.
 
+Any call passing a `regen` config with a non-finite or non-positive `intervalMs`,
+`amount`, or `cap` **throws `INVALID_REGEN`** — this prevents `0 * Infinity = NaN`
+from corrupting the `lastRegenAt` field.
+
+The `delta` field in each ledger row is the **actual balance change**, not the
+requested amount. When a credit is clamped by `max` or regen state, `delta`
+equals the real increase only.
+
 ## Mutations
 
 ### `earn(ctx, subjectRef, currency, amount, reason, opts?) → { balance }`
@@ -44,13 +52,18 @@ independent. Creates the balance row if the subject did not hold the currency.
 per subject + currency). Use after the host has verified an IAP / Stripe
 purchase, keyed on the receipt id.
 
-### `spend(ctx, subjectRef, currency, amount, reason) → { ok, balance, code? }`
+### `spend(ctx, subjectRef, currency, amount, reason, opts?) → { ok, balance, code? }`
 
 Debit `amount` of `currency`. Never goes negative — when the (regen-aware)
 balance is short, returns `{ ok: false, balance, code: "INSUFFICIENT" }` while
 still persisting any regen that accrued. On success returns `{ ok: true, balance }`
 with the new balance. `code` is a stable, machine-readable tag; `reason` is the
 free-text ledger note.
+
+`opts.idempotencyKey` makes spend replay-safe: if this `(subjectRef, currency,
+idempotencyKey)` tuple was already recorded, the call is a no-op — it returns the
+current (regen-aware) balance without a second debit or ledger row. Use this to
+prevent double-charges on host retries.
 
 ### `transfer(ctx, fromRef, toRef, currency, amount, reason) → { ok, balance, code? }`
 

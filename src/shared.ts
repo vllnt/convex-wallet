@@ -29,6 +29,13 @@ export const ERROR_CODES = {
   SELF_TRANSFER: "SELF_TRANSFER",
 } as const;
 
+/**
+ * Thrown by {@link applyRegen} when a regen config has a non-finite or
+ * non-positive field. Carries the stable `INVALID_REGEN` code so hosts can
+ * branch without string-matching prose.
+ */
+export const INVALID_REGEN = "INVALID_REGEN";
+
 /** A non-throwing result failure tag. */
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
 
@@ -96,10 +103,21 @@ export function applyRegen(
   if (regen === undefined || now <= lastRegenAt) {
     return { amount: stored, lastRegenAt };
   }
-  const ticks = Math.floor((now - lastRegenAt) / regen.intervalMs);
-  if (ticks === 0) {
-    return { amount: stored, lastRegenAt };
+  if (
+    !Number.isFinite(regen.intervalMs) ||
+    regen.intervalMs <= 0 ||
+    !Number.isFinite(regen.amount) ||
+    regen.amount <= 0 ||
+    !Number.isFinite(regen.cap) ||
+    regen.cap <= 0
+  ) {
+    throw new Error(INVALID_REGEN);
   }
-  const amount = Math.min(regen.cap, stored + ticks * regen.amount);
-  return { amount, lastRegenAt: lastRegenAt + ticks * regen.intervalMs };
+  const ticks = Math.floor((now - lastRegenAt) / regen.intervalMs);
+  return ticks === 0
+    ? { amount: stored, lastRegenAt }
+    : {
+        amount: Math.max(stored, Math.min(regen.cap, stored + ticks * regen.amount)),
+        lastRegenAt: lastRegenAt + ticks * regen.intervalMs,
+      };
 }

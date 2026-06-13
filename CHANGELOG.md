@@ -6,7 +6,25 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- **Ledger delta correctness** — `earn` and the receiver leg of `transfer` now
+  record the actual balance change in `delta`, not the requested amount. When a
+  credit is clamped by `max`, `delta` equals the real increase only.
+- **Regen config validation** — `applyRegen` now throws `INVALID_REGEN` when
+  `intervalMs`, `amount`, or `cap` is non-finite or non-positive, preventing
+  `0 * Infinity = NaN` from corrupting `lastRegenAt`.
+- **Regen below-stored guard** — `applyRegen` now ensures the projected balance
+  is never reduced below `stored` (fixes the case where `stored > regen.cap`
+  previously silently destroyed funds).
+
 ### Added
+
+- **Idempotent spend** — `spend` now accepts an optional `idempotencyKey`. A
+  replay of an already-recorded key returns the current balance without a second
+  debit or ledger row, preventing double-charges on host retries.
+
+### Added (initial scaffold)
 
 - Initial scaffold.
 

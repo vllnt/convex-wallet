@@ -9,6 +9,7 @@ import {
   DEFAULT_PRUNE_INTERVAL_MS,
   ERROR_CODES,
   INVALID_AMOUNT,
+  INVALID_REGEN,
 } from "../../src/shared";
 import crons from "../../src/component/crons";
 
@@ -64,6 +65,54 @@ describe("applyRegen — all branches", () => {
     expect(r.lastRegenAt).toBeLessThanOrEqual(9_999);
     expect(r.lastRegenAt).toBe(9_000);
   });
+
+  test("intervalMs:0 → throws INVALID_REGEN (NaN corruption guard)", () => {
+    expect(() => applyRegen(5, 0, 10_000, { amount: 1, intervalMs: 0, cap: 10 })).toThrow(
+      INVALID_REGEN,
+    );
+  });
+
+  test("amount:0 in regen config → throws INVALID_REGEN", () => {
+    expect(() => applyRegen(5, 0, 10_000, { amount: 0, intervalMs: 1000, cap: 10 })).toThrow(
+      INVALID_REGEN,
+    );
+  });
+
+  test("cap:0 in regen config → throws INVALID_REGEN", () => {
+    expect(() => applyRegen(5, 0, 10_000, { amount: 1, intervalMs: 1000, cap: 0 })).toThrow(
+      INVALID_REGEN,
+    );
+  });
+
+  test("intervalMs:NaN → throws INVALID_REGEN", () => {
+    expect(() =>
+      applyRegen(5, 0, 10_000, { amount: 1, intervalMs: Number.NaN, cap: 10 }),
+    ).toThrow(INVALID_REGEN);
+  });
+
+  test("stored > regen.cap → balance is NOT reduced below stored", () => {
+    const regen = { amount: 1, intervalMs: 1000, cap: 5 };
+    const r = applyRegen(10, 0, 3000, regen);
+    expect(r.amount).toBeGreaterThanOrEqual(10);
+  });
+
+  test("stored exactly at cap → no change when regen would not increase beyond cap", () => {
+    const regen = { amount: 1, intervalMs: 1000, cap: 10 };
+    const r = applyRegen(10, 0, 5000, regen);
+    expect(r.amount).toBe(10);
+  });
+
+  test("after INVALID_REGEN a valid regen call still works (no row corruption)", () => {
+    let threw = false;
+    try {
+      applyRegen(5, 0, 10_000, { amount: 1, intervalMs: 0, cap: 10 });
+    } catch {
+      threw = true;
+    }
+    expect(threw).toBe(true);
+    const r = applyRegen(5, 0, 3_000, { amount: 1, intervalMs: 1000, cap: 10 });
+    expect(r.amount).toBe(8);
+  });
 });
 
 describe("assertPositiveAmount — abuse guard", () => {
@@ -100,6 +149,7 @@ test("exported constants", () => {
     INSUFFICIENT: "INSUFFICIENT",
     SELF_TRANSFER: "SELF_TRANSFER",
   });
+  expect(INVALID_REGEN).toBe("INVALID_REGEN");
 });
 
 test("component registers the retention/idempotency prune cron", () => {

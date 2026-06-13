@@ -64,10 +64,12 @@ export const earn = mutation({
       .unique();
 
     let balance: number;
+    let delta: number;
     if (row === null) {
       // No balance row → no recorded key for it can exist, so the idempotency
       // check is unnecessary: this is always a first credit.
       balance = clampToMax(args.amount, args.max);
+      delta = balance;
       await ctx.db.insert("balances", {
         subjectRef: args.subjectRef,
         currency: args.currency,
@@ -93,17 +95,18 @@ export const earn = mutation({
       }
       const r = applyRegen(row.amount, row.lastRegenAt, now, args.regen);
       balance = clampToMax(r.amount + args.amount, args.max);
+      delta = balance - r.amount;
       await ctx.db.patch(row._id, {
         amount: balance,
         lastRegenAt: r.lastRegenAt,
-        lifetimeEarned: row.lifetimeEarned + (balance - r.amount),
+        lifetimeEarned: row.lifetimeEarned + delta,
       });
     }
 
     await ctx.db.insert("ledger", {
       subjectRef: args.subjectRef,
       currency: args.currency,
-      delta: args.amount,
+      delta,
       reason: args.reason,
       idempotencyKey: args.idempotencyKey,
       createdAt: now,
@@ -123,6 +126,7 @@ export const spend = mutation({
     currency: v.string(),
     amount: v.number(),
     reason: v.string(),
+    idempotencyKey: v.optional(v.string()),
     regen: regenArg,
   },
   returns: spendResult,
@@ -137,6 +141,21 @@ export const spend = mutation({
       .unique();
     if (row === null) {
       return { ok: false, balance: 0, code: "INSUFFICIENT" as const };
+    }
+    if (args.idempotencyKey !== undefined) {
+      const seen = await findIdempotent(
+        ctx,
+        args.subjectRef,
+        args.currency,
+        args.idempotencyKey,
+      );
+      if (seen !== null) {
+        // Replay: return the current (regen-aware) balance, no double-debit.
+        return {
+          ok: true,
+          balance: applyRegen(row.amount, row.lastRegenAt, now, args.regen).amount,
+        };
+      }
     }
     const r = applyRegen(row.amount, row.lastRegenAt, now, args.regen);
     if (r.amount < args.amount) {
@@ -154,6 +173,7 @@ export const spend = mutation({
       currency: args.currency,
       delta: -args.amount,
       reason: args.reason,
+      idempotencyKey: args.idempotencyKey,
       createdAt: now,
     });
     return { ok: true, balance };
@@ -225,8 +245,10 @@ export const transfer = mutation({
         q.eq("subjectRef", args.toRef).eq("currency", args.currency),
       )
       .unique();
+    let receiverDelta: number;
     if (toRow === null) {
       const credited = clampToMax(args.amount, args.max);
+      receiverDelta = credited;
       await ctx.db.insert("balances", {
         subjectRef: args.toRef,
         currency: args.currency,
@@ -238,16 +260,17 @@ export const transfer = mutation({
     } else {
       const toR = applyRegen(toRow.amount, toRow.lastRegenAt, now, args.regen);
       const credited = clampToMax(toR.amount + args.amount, args.max);
+      receiverDelta = credited - toR.amount;
       await ctx.db.patch(toRow._id, {
         amount: credited,
         lastRegenAt: toR.lastRegenAt,
-        lifetimeEarned: toRow.lifetimeEarned + (credited - toR.amount),
+        lifetimeEarned: toRow.lifetimeEarned + receiverDelta,
       });
     }
     await ctx.db.insert("ledger", {
       subjectRef: args.toRef,
       currency: args.currency,
-      delta: args.amount,
+      delta: receiverDelta,
       reason: args.reason,
       createdAt: now,
     });

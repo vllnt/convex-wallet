@@ -28,10 +28,11 @@ processes payments.
 
 - **Atomic spend** — debits ride the Convex mutation transaction; never goes negative, never double-spends.
 - **Abuse-guarded amounts** — every value-moving call rejects non-finite or non-positive amounts (`INVALID_AMOUNT`); a negative `spend` can never mint funds.
-- **Typed ledger** — every earn / spend / transfer is recorded with a signed `delta`, `reason`, and timestamp.
+- **Typed ledger** — every earn / spend / transfer is recorded with a signed `delta` (the actual balance change, not the requested amount), `reason`, and timestamp. On a clamped credit, `delta` equals the actual increase, not the requested amount.
 - **Idempotent grants** — `grant(...)` credits exactly once per `idempotencyKey`, scoped per `(subjectRef, currency)`; safe to replay after a verified purchase.
-- **Lazy time-regen** — energy-style currencies regenerate `amount` per `intervalMs` up to a `cap`, computed on read from the **server clock** (regen reads need no cron). A backwards/stale clock can never over-regen.
-- **Per-currency `max`** — an optional hard ceiling on the stored balance; credits clamp to it.
+- **Idempotent spend** — `spend(...)` also accepts an optional `idempotencyKey`; a replay returns the current balance without a second debit or ledger row.
+- **Lazy time-regen** — energy-style currencies regenerate `amount` per `intervalMs` up to a `cap`, computed on read from the **server clock** (regen reads need no cron). A backwards/stale clock can never over-regen. Regen config fields (`intervalMs`, `amount`, `cap`) are validated — non-finite or non-positive values throw `INVALID_REGEN`.
+- **Per-currency `max`** — an optional hard ceiling on the stored balance; credits clamp to it. Regen never reduces a balance below its stored value.
 - **Multi-currency** — any number of opaque currencies per subject, with a regen-aware per-subject overview.
 - **Transfers** — move a currency between two subjects in one transaction; self-transfer is rejected (`SELF_TRANSFER`).
 - **Typed error codes** — a rejected spend/transfer returns a stable `code` (`INSUFFICIENT` | `SELF_TRANSFER`); `reason` is the human ledger note.
@@ -121,14 +122,15 @@ See [docs/API.md](docs/API.md). Summary:
 |--------|------|--------|
 | `earn(ctx, subjectRef, currency, amount, reason, opts?)` | mutation | `{ balance }` (new balance, clamped to `max`) |
 | `grant(ctx, subjectRef, currency, amount, reason, idempotencyKey)` | mutation | `{ balance }` (credited once per key) |
-| `spend(ctx, subjectRef, currency, amount, reason)` | mutation | `{ ok, balance, code? }` (`INSUFFICIENT`) |
+| `spend(ctx, subjectRef, currency, amount, reason, opts?)` | mutation | `{ ok, balance, code? }` (`INSUFFICIENT`); `opts.idempotencyKey` makes replay a no-op |
 | `transfer(ctx, fromRef, toRef, currency, amount, reason)` | mutation | `{ ok, balance, code? }` (`INSUFFICIENT` \| `SELF_TRANSFER`) |
 | `balance(ctx, subjectRef, currency)` | query | `number` (regen-aware; missing → 0) |
 | `balances(ctx, subjectRef)` | query | `{ currency, amount }[]` (regen-aware) |
 | `history(ctx, subjectRef, currency, limit?)` | query | `LedgerEntry[]` (newest-first) |
 
 Every value-moving call (`earn` / `grant` / `spend` / `transfer`) throws
-`INVALID_AMOUNT` when `amount` is not a finite number `> 0`.
+`INVALID_AMOUNT` when `amount` is not a finite number `> 0`. Regen configs throw
+`INVALID_REGEN` when `intervalMs`, `amount`, or `cap` is not a finite positive number.
 
 Per-currency config: `{ regen?: { amount, intervalMs, cap }, max? }`.
 Client options: `new Wallet(component, { currencies?, defaultHistoryLimit = 50 })`.
@@ -180,10 +182,20 @@ transaction, so balances never go negative and grants never double-credit.
 - **Amount validation** — every value-moving call rejects non-finite or
   non-positive amounts (`INVALID_AMOUNT`). A negative `spend` can never mint
   funds; `NaN`/`Infinity` can never corrupt a balance.
+- **Regen config validation** — regen fields (`intervalMs`, `amount`, `cap`) are
+  validated at call time; a zero/negative/non-finite value throws `INVALID_REGEN`
+  before touching any row (prevents `NaN` corruption from `0 * Infinity`).
 - **Server-sourced time** — every handler reads `Date.now()` itself; the host
   never supplies `now`, so a forged/replayed clock cannot drive extra regen.
 - **Monotonic regen** — a backwards or equal clock never advances the regen
   pointer or grants units, and the pointer never moves past the current time.
+  Regen also never reduces a balance already above the regen cap.
+- **Accurate ledger deltas** — the `delta` field in each ledger row reflects the
+  actual balance change, not the requested amount; clamped credits record only
+  the real increase.
+- **Idempotent spend** — `spend` accepts an optional `idempotencyKey`; a replay
+  of a key already recorded returns the current balance without a second debit or
+  ledger row, preventing host-retry double-charges.
 - **Per-`(subject, currency)` idempotency** — a key is scoped to one subject and
   currency, so reusing it elsewhere is independent (no silently-dropped grants),
   and replays return the originally-affected balance.
@@ -222,7 +234,25 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- **Ledger delta correctness** — `earn` and the receiver leg of `transfer` now
+  record the actual balance change in `delta`, not the requested amount. When a
+  credit is clamped by `max`, `delta` equals the real increase only.
+- **Regen config validation** — `applyRegen` now throws `INVALID_REGEN` when
+  `intervalMs`, `amount`, or `cap` is non-finite or non-positive, preventing
+  `0 * Infinity = NaN` from corrupting `lastRegenAt`.
+- **Regen below-stored guard** — `applyRegen` now ensures the projected balance
+  is never reduced below `stored` (fixes the case where `stored > regen.cap`
+  previously silently destroyed funds).
+
 ### Added
+
+- **Idempotent spend** — `spend` now accepts an optional `idempotencyKey`. A
+  replay of an already-recorded key returns the current balance without a second
+  debit or ledger row, preventing double-charges on host retries.
+
+### Added (initial scaffold)
 
 - Initial scaffold.
 
@@ -296,6 +326,14 @@ Every value-moving call (`earn` / `grant` / `spend` / `transfer`) **throws
 (rejects `0`, negatives, `NaN`, `Infinity`). A negative `spend` can never mint
 funds.
 
+Any call passing a `regen` config with a non-finite or non-positive `intervalMs`,
+`amount`, or `cap` **throws `INVALID_REGEN`** — this prevents `0 * Infinity = NaN`
+from corrupting the `lastRegenAt` field.
+
+The `delta` field in each ledger row is the **actual balance change**, not the
+requested amount. When a credit is clamped by `max` or regen state, `delta`
+equals the real increase only.
+
 ## Mutations
 
 ### `earn(ctx, subjectRef, currency, amount, reason, opts?) → { balance }`
@@ -313,13 +351,18 @@ independent. Creates the balance row if the subject did not hold the currency.
 per subject + currency). Use after the host has verified an IAP / Stripe
 purchase, keyed on the receipt id.
 
-### `spend(ctx, subjectRef, currency, amount, reason) → { ok, balance, code? }`
+### `spend(ctx, subjectRef, currency, amount, reason, opts?) → { ok, balance, code? }`
 
 Debit `amount` of `currency`. Never goes negative — when the (regen-aware)
 balance is short, returns `{ ok: false, balance, code: "INSUFFICIENT" }` while
 still persisting any regen that accrued. On success returns `{ ok: true, balance }`
 with the new balance. `code` is a stable, machine-readable tag; `reason` is the
 free-text ledger note.
+
+`opts.idempotencyKey` makes spend replay-safe: if this `(subjectRef, currency,
+idempotencyKey)` tuple was already recorded, the call is a no-op — it returns the
+current (regen-aware) balance without a second debit or ledger row. Use this to
+prevent double-charges on host retries.
 
 ### `transfer(ctx, fromRef, toRef, currency, amount, reason) → { ok, balance, code? }`
 
@@ -403,6 +446,13 @@ export const ERROR_CODES = {
   SELF_TRANSFER: "SELF_TRANSFER",
 } as const;
 
+/**
+ * Thrown by {@link applyRegen} when a regen config has a non-finite or
+ * non-positive field. Carries the stable `INVALID_REGEN` code so hosts can
+ * branch without string-matching prose.
+ */
+export const INVALID_REGEN = "INVALID_REGEN";
+
 /** A non-throwing result failure tag. */
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
 
@@ -470,12 +520,23 @@ export function applyRegen(
   if (regen === undefined || now <= lastRegenAt) {
     return { amount: stored, lastRegenAt };
   }
-  const ticks = Math.floor((now - lastRegenAt) / regen.intervalMs);
-  if (ticks === 0) {
-    return { amount: stored, lastRegenAt };
+  if (
+    !Number.isFinite(regen.intervalMs) ||
+    regen.intervalMs <= 0 ||
+    !Number.isFinite(regen.amount) ||
+    regen.amount <= 0 ||
+    !Number.isFinite(regen.cap) ||
+    regen.cap <= 0
+  ) {
+    throw new Error(INVALID_REGEN);
   }
-  const amount = Math.min(regen.cap, stored + ticks * regen.amount);
-  return { amount, lastRegenAt: lastRegenAt + ticks * regen.intervalMs };
+  const ticks = Math.floor((now - lastRegenAt) / regen.intervalMs);
+  return ticks === 0
+    ? { amount: stored, lastRegenAt }
+    : {
+        amount: Math.max(stored, Math.min(regen.cap, stored + ticks * regen.amount)),
+        lastRegenAt: lastRegenAt + ticks * regen.intervalMs,
+      };
 }
 
 ```
@@ -588,6 +649,7 @@ export interface WalletComponent {
         currency: string;
         amount: number;
         reason: string;
+        idempotencyKey?: string;
         regen?: RegenConfig;
       },
       SpendResult
@@ -716,19 +778,26 @@ export class Wallet {
     return this.earn(ctx, subjectRef, currency, amount, reason, { idempotencyKey });
   }
 
-  /** Debit `amount` of `currency` from `subjectRef`. Never goes negative. */
+  /**
+   * Debit `amount` of `currency` from `subjectRef`. Never goes negative.
+   * When `opts.idempotencyKey` is supplied and already recorded for this
+   * `(subjectRef, currency)`, this is a no-op replay — the current
+   * (regen-aware) balance is returned without a second debit or ledger row.
+   */
   spend(
     ctx: RunMutationCtx,
     subjectRef: string,
     currency: string,
     amount: number,
     reason: string,
+    opts: { idempotencyKey?: string } = {},
   ): Promise<SpendResult> {
     return ctx.runMutation(this.component.mutations.spend, {
       subjectRef,
       currency,
       amount,
       reason,
+      idempotencyKey: opts.idempotencyKey,
       regen: this.regenFor(currency),
     });
   }
@@ -974,10 +1043,12 @@ export const earn = mutation({
       .unique();
 
     let balance: number;
+    let delta: number;
     if (row === null) {
       // No balance row → no recorded key for it can exist, so the idempotency
       // check is unnecessary: this is always a first credit.
       balance = clampToMax(args.amount, args.max);
+      delta = balance;
       await ctx.db.insert("balances", {
         subjectRef: args.subjectRef,
         currency: args.currency,
@@ -1003,17 +1074,18 @@ export const earn = mutation({
       }
       const r = applyRegen(row.amount, row.lastRegenAt, now, args.regen);
       balance = clampToMax(r.amount + args.amount, args.max);
+      delta = balance - r.amount;
       await ctx.db.patch(row._id, {
         amount: balance,
         lastRegenAt: r.lastRegenAt,
-        lifetimeEarned: row.lifetimeEarned + (balance - r.amount),
+        lifetimeEarned: row.lifetimeEarned + delta,
       });
     }
 
     await ctx.db.insert("ledger", {
       subjectRef: args.subjectRef,
       currency: args.currency,
-      delta: args.amount,
+      delta,
       reason: args.reason,
       idempotencyKey: args.idempotencyKey,
       createdAt: now,
@@ -1033,6 +1105,7 @@ export const spend = mutation({
     currency: v.string(),
     amount: v.number(),
     reason: v.string(),
+    idempotencyKey: v.optional(v.string()),
     regen: regenArg,
   },
   returns: spendResult,
@@ -1047,6 +1120,21 @@ export const spend = mutation({
       .unique();
     if (row === null) {
       return { ok: false, balance: 0, code: "INSUFFICIENT" as const };
+    }
+    if (args.idempotencyKey !== undefined) {
+      const seen = await findIdempotent(
+        ctx,
+        args.subjectRef,
+        args.currency,
+        args.idempotencyKey,
+      );
+      if (seen !== null) {
+        // Replay: return the current (regen-aware) balance, no double-debit.
+        return {
+          ok: true,
+          balance: applyRegen(row.amount, row.lastRegenAt, now, args.regen).amount,
+        };
+      }
     }
     const r = applyRegen(row.amount, row.lastRegenAt, now, args.regen);
     if (r.amount < args.amount) {
@@ -1064,6 +1152,7 @@ export const spend = mutation({
       currency: args.currency,
       delta: -args.amount,
       reason: args.reason,
+      idempotencyKey: args.idempotencyKey,
       createdAt: now,
     });
     return { ok: true, balance };
@@ -1135,8 +1224,10 @@ export const transfer = mutation({
         q.eq("subjectRef", args.toRef).eq("currency", args.currency),
       )
       .unique();
+    let receiverDelta: number;
     if (toRow === null) {
       const credited = clampToMax(args.amount, args.max);
+      receiverDelta = credited;
       await ctx.db.insert("balances", {
         subjectRef: args.toRef,
         currency: args.currency,
@@ -1148,16 +1239,17 @@ export const transfer = mutation({
     } else {
       const toR = applyRegen(toRow.amount, toRow.lastRegenAt, now, args.regen);
       const credited = clampToMax(toR.amount + args.amount, args.max);
+      receiverDelta = credited - toR.amount;
       await ctx.db.patch(toRow._id, {
         amount: credited,
         lastRegenAt: toR.lastRegenAt,
-        lifetimeEarned: toRow.lifetimeEarned + (credited - toR.amount),
+        lifetimeEarned: toRow.lifetimeEarned + receiverDelta,
       });
     }
     await ctx.db.insert("ledger", {
       subjectRef: args.toRef,
       currency: args.currency,
-      delta: args.amount,
+      delta: receiverDelta,
       reason: args.reason,
       createdAt: now,
     });

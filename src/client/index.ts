@@ -42,6 +42,7 @@ export interface WalletComponent {
         currency: string;
         amount: number;
         reason: string;
+        idempotencyKey?: string;
         regen?: RegenConfig;
       },
       SpendResult
@@ -170,19 +171,26 @@ export class Wallet {
     return this.earn(ctx, subjectRef, currency, amount, reason, { idempotencyKey });
   }
 
-  /** Debit `amount` of `currency` from `subjectRef`. Never goes negative. */
+  /**
+   * Debit `amount` of `currency` from `subjectRef`. Never goes negative.
+   * When `opts.idempotencyKey` is supplied and already recorded for this
+   * `(subjectRef, currency)`, this is a no-op replay — the current
+   * (regen-aware) balance is returned without a second debit or ledger row.
+   */
   spend(
     ctx: RunMutationCtx,
     subjectRef: string,
     currency: string,
     amount: number,
     reason: string,
+    opts: { idempotencyKey?: string } = {},
   ): Promise<SpendResult> {
     return ctx.runMutation(this.component.mutations.spend, {
       subjectRef,
       currency,
       amount,
       reason,
+      idempotencyKey: opts.idempotencyKey,
       regen: this.regenFor(currency),
     });
   }

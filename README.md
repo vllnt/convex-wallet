@@ -20,10 +20,11 @@ processes payments.
 
 - **Atomic spend** — debits ride the Convex mutation transaction; never goes negative, never double-spends.
 - **Abuse-guarded amounts** — every value-moving call rejects non-finite or non-positive amounts (`INVALID_AMOUNT`); a negative `spend` can never mint funds.
-- **Typed ledger** — every earn / spend / transfer is recorded with a signed `delta`, `reason`, and timestamp.
+- **Typed ledger** — every earn / spend / transfer is recorded with a signed `delta` (the actual balance change, not the requested amount), `reason`, and timestamp. On a clamped credit, `delta` equals the actual increase, not the requested amount.
 - **Idempotent grants** — `grant(...)` credits exactly once per `idempotencyKey`, scoped per `(subjectRef, currency)`; safe to replay after a verified purchase.
-- **Lazy time-regen** — energy-style currencies regenerate `amount` per `intervalMs` up to a `cap`, computed on read from the **server clock** (regen reads need no cron). A backwards/stale clock can never over-regen.
-- **Per-currency `max`** — an optional hard ceiling on the stored balance; credits clamp to it.
+- **Idempotent spend** — `spend(...)` also accepts an optional `idempotencyKey`; a replay returns the current balance without a second debit or ledger row.
+- **Lazy time-regen** — energy-style currencies regenerate `amount` per `intervalMs` up to a `cap`, computed on read from the **server clock** (regen reads need no cron). A backwards/stale clock can never over-regen. Regen config fields (`intervalMs`, `amount`, `cap`) are validated — non-finite or non-positive values throw `INVALID_REGEN`.
+- **Per-currency `max`** — an optional hard ceiling on the stored balance; credits clamp to it. Regen never reduces a balance below its stored value.
 - **Multi-currency** — any number of opaque currencies per subject, with a regen-aware per-subject overview.
 - **Transfers** — move a currency between two subjects in one transaction; self-transfer is rejected (`SELF_TRANSFER`).
 - **Typed error codes** — a rejected spend/transfer returns a stable `code` (`INSUFFICIENT` | `SELF_TRANSFER`); `reason` is the human ledger note.
@@ -113,14 +114,15 @@ See [docs/API.md](docs/API.md). Summary:
 |--------|------|--------|
 | `earn(ctx, subjectRef, currency, amount, reason, opts?)` | mutation | `{ balance }` (new balance, clamped to `max`) |
 | `grant(ctx, subjectRef, currency, amount, reason, idempotencyKey)` | mutation | `{ balance }` (credited once per key) |
-| `spend(ctx, subjectRef, currency, amount, reason)` | mutation | `{ ok, balance, code? }` (`INSUFFICIENT`) |
+| `spend(ctx, subjectRef, currency, amount, reason, opts?)` | mutation | `{ ok, balance, code? }` (`INSUFFICIENT`); `opts.idempotencyKey` makes replay a no-op |
 | `transfer(ctx, fromRef, toRef, currency, amount, reason)` | mutation | `{ ok, balance, code? }` (`INSUFFICIENT` \| `SELF_TRANSFER`) |
 | `balance(ctx, subjectRef, currency)` | query | `number` (regen-aware; missing → 0) |
 | `balances(ctx, subjectRef)` | query | `{ currency, amount }[]` (regen-aware) |
 | `history(ctx, subjectRef, currency, limit?)` | query | `LedgerEntry[]` (newest-first) |
 
 Every value-moving call (`earn` / `grant` / `spend` / `transfer`) throws
-`INVALID_AMOUNT` when `amount` is not a finite number `> 0`.
+`INVALID_AMOUNT` when `amount` is not a finite number `> 0`. Regen configs throw
+`INVALID_REGEN` when `intervalMs`, `amount`, or `cap` is not a finite positive number.
 
 Per-currency config: `{ regen?: { amount, intervalMs, cap }, max? }`.
 Client options: `new Wallet(component, { currencies?, defaultHistoryLimit = 50 })`.
@@ -172,10 +174,20 @@ transaction, so balances never go negative and grants never double-credit.
 - **Amount validation** — every value-moving call rejects non-finite or
   non-positive amounts (`INVALID_AMOUNT`). A negative `spend` can never mint
   funds; `NaN`/`Infinity` can never corrupt a balance.
+- **Regen config validation** — regen fields (`intervalMs`, `amount`, `cap`) are
+  validated at call time; a zero/negative/non-finite value throws `INVALID_REGEN`
+  before touching any row (prevents `NaN` corruption from `0 * Infinity`).
 - **Server-sourced time** — every handler reads `Date.now()` itself; the host
   never supplies `now`, so a forged/replayed clock cannot drive extra regen.
 - **Monotonic regen** — a backwards or equal clock never advances the regen
   pointer or grants units, and the pointer never moves past the current time.
+  Regen also never reduces a balance already above the regen cap.
+- **Accurate ledger deltas** — the `delta` field in each ledger row reflects the
+  actual balance change, not the requested amount; clamped credits record only
+  the real increase.
+- **Idempotent spend** — `spend` accepts an optional `idempotencyKey`; a replay
+  of a key already recorded returns the current balance without a second debit or
+  ledger row, preventing host-retry double-charges.
 - **Per-`(subject, currency)` idempotency** — a key is scoped to one subject and
   currency, so reusing it elsewhere is independent (no silently-dropped grants),
   and replays return the originally-affected balance.

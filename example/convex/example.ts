@@ -65,9 +65,18 @@ export const grant = mutation({
 });
 
 export const spendCall = mutation({
-  args: { subjectRef: v.string(), currency: v.string(), amount: v.number(), reason: v.string() },
+  args: {
+    subjectRef: v.string(),
+    currency: v.string(),
+    amount: v.number(),
+    reason: v.string(),
+    idempotencyKey: v.optional(v.string()),
+  },
   returns: spend,
-  handler: (ctx, a) => wallet.spend(ctx, a.subjectRef, a.currency, a.amount, a.reason),
+  handler: (ctx, a) =>
+    wallet.spend(ctx, a.subjectRef, a.currency, a.amount, a.reason, {
+      idempotencyKey: a.idempotencyKey,
+    }),
 });
 
 export const transferCall = mutation({
