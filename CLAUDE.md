@@ -79,12 +79,11 @@ src/
 
 | Changed | Update in same commit |
 |---------|-----------------------|
-| Public API (client methods, args, returns, error codes) | `README.md` API Reference, `docs/API.md`, `llms.txt`, `llms-full.txt` |
+| Public API (client methods, args, returns, error codes) | `README.md` API Reference, `docs/API.md`, `llms.txt` |
 | Config points / options | `README.md` Usage + API Reference, `docs/API.md` |
 | Schema / tables / indexes | `README.md` Architecture |
 | `convex` peer version | `llms.txt` context line, `README.md` Installation, `docs/API.md` Compatibility |
-| New file / capability | `README.md`, `llms.txt`, regenerate `llms-full.txt` |
+| New file / capability | `README.md`, `llms.txt` |
 | Version | `CHANGELOG.md` entry |
 
-Run `pnpm generate:llms` after any source or doc change to keep `llms-full.txt` current.
 Grep the old value before committing — zero stale hits required.
