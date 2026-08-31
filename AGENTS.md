@@ -11,8 +11,13 @@ Convex agent skills for common tasks can be installed by running `npx convex ai-
 # @vllnt/convex-wallet
 
 Consumable balances and economy ledger with atomic spend and lazy regen, as a Convex component.
-Follows the vllnt Component Standard (see the `convex-components` hub
-`.claude/rules/component-standard.md`).
+Follows the vllnt Component Standard (see the `oss-packages` hub
+`AGENTS.md`).
+
+## Agent instructions
+
+`AGENTS.md` is the sole agent-instruction source for this repository. Do not add
+`CLAUDE.md` or `.claude` content.
 
 ## Architecture
 
@@ -88,3 +93,9 @@ src/
 
 Run `pnpm generate:llms` after any source or doc change to keep `llms-full.txt` current.
 Grep the old value before committing — zero stale hits required.
+
+## Generated code
+
+- Every `**/_generated/**` file is owned exclusively by Convex CLI codegen.
+- Never create, edit, lint, or format generated files manually.
+- Run `pnpm codegen` to regenerate them and commit the generated output unchanged.
