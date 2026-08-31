@@ -158,18 +158,3 @@ export const balancesPlain = query({
   returns: v.array(v.object({ currency: v.string(), amount: v.number() })),
   handler: (ctx, a) => plainWallet.balances(ctx, a.subjectRef),
 });
-
-/**
- * Drive the component's internal retention/idempotency sweep directly, so a test
- * can exercise it without waiting on the cron. Reaches the component's
- * `internalMutation` through the host's `runMutation` (cross-boundary call).
- */
-export const pruneCall = mutation({
-  args: { retentionMs: v.number(), idempotencyTtlMs: v.number() },
-  returns: v.object({ deleted: v.number(), expired: v.number() }),
-  handler: (ctx, a) =>
-    ctx.runMutation(components.wallet.internal_mutations.pruneLedger, {
-      retentionMs: a.retentionMs,
-      idempotencyTtlMs: a.idempotencyTtlMs,
-    }),
-});

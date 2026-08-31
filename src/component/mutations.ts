@@ -96,7 +96,7 @@ export const earn = mutation({
       const r = applyRegen(row.amount, row.lastRegenAt, now, args.regen);
       balance = clampToMax(r.amount + args.amount, args.max);
       delta = balance - r.amount;
-      await ctx.db.patch(row._id, {
+      await ctx.db.patch("balances", row._id, {
         amount: balance,
         lastRegenAt: r.lastRegenAt,
         lifetimeEarned: row.lifetimeEarned + delta,
@@ -159,11 +159,11 @@ export const spend = mutation({
     }
     const r = applyRegen(row.amount, row.lastRegenAt, now, args.regen);
     if (r.amount < args.amount) {
-      await ctx.db.patch(row._id, { amount: r.amount, lastRegenAt: r.lastRegenAt });
+      await ctx.db.patch("balances", row._id, { amount: r.amount, lastRegenAt: r.lastRegenAt });
       return { ok: false, balance: r.amount, code: "INSUFFICIENT" as const };
     }
     const balance = r.amount - args.amount;
-    await ctx.db.patch(row._id, {
+    await ctx.db.patch("balances", row._id, {
       amount: balance,
       lastRegenAt: r.lastRegenAt,
       lifetimeSpent: row.lifetimeSpent + args.amount,
@@ -219,14 +219,14 @@ export const transfer = mutation({
     }
     const fromR = applyRegen(fromRow.amount, fromRow.lastRegenAt, now, args.regen);
     if (fromR.amount < args.amount) {
-      await ctx.db.patch(fromRow._id, {
+      await ctx.db.patch("balances", fromRow._id, {
         amount: fromR.amount,
         lastRegenAt: fromR.lastRegenAt,
       });
       return { ok: false, balance: fromR.amount, code: "INSUFFICIENT" as const };
     }
     const fromBalance = fromR.amount - args.amount;
-    await ctx.db.patch(fromRow._id, {
+    await ctx.db.patch("balances", fromRow._id, {
       amount: fromBalance,
       lastRegenAt: fromR.lastRegenAt,
       lifetimeSpent: fromRow.lifetimeSpent + args.amount,
@@ -261,7 +261,7 @@ export const transfer = mutation({
       const toR = applyRegen(toRow.amount, toRow.lastRegenAt, now, args.regen);
       const credited = clampToMax(toR.amount + args.amount, args.max);
       receiverDelta = credited - toR.amount;
-      await ctx.db.patch(toRow._id, {
+      await ctx.db.patch("balances", toRow._id, {
         amount: credited,
         lastRegenAt: toR.lastRegenAt,
         lifetimeEarned: toRow.lifetimeEarned + receiverDelta,

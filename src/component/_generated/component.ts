@@ -45,6 +45,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           amount: number;
           currency: string;
+          idempotencyKey?: string;
           reason: string;
           regen?: { amount: number; cap: number; intervalMs: number };
           subjectRef: string;
