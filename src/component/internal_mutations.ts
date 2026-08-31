@@ -33,7 +33,7 @@ export const pruneLedger = internalMutation({
       .order("asc")
       .take(PRUNE_BATCH);
     for (const row of oldest) {
-      await ctx.db.delete(row._id);
+      await ctx.db.delete("ledger", row._id);
     }
 
     let expired = 0;
@@ -47,7 +47,7 @@ export const pruneLedger = internalMutation({
         .take(PRUNE_BATCH - oldest.length);
       for (const row of stale) {
         if (row.idempotencyKey !== undefined) {
-          await ctx.db.patch(row._id, { idempotencyKey: undefined });
+          await ctx.db.patch("ledger", row._id, { idempotencyKey: undefined });
           expired += 1;
         }
       }

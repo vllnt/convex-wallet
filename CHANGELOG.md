@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+
+- Require `convex@^1.45.0` and update `convex-test` to `^0.0.56`.
+
 ### Fixed
 
 - **Ledger delta correctness** — `earn` and the receiver leg of `transfer` now
