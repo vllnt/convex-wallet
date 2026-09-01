@@ -12,8 +12,17 @@ All notable changes to this project are documented here. The format is based on
   dedicated codegen script.
 - Refresh all direct dependencies to their latest compatible releases for canary validation.
 - Require `convex@^1.45.0` and update `convex-test` to `^0.0.56`.
+- Bound ledger history reads to integer limits from 1 through 1000.
+
+### Breaking
+
+- `history` now throws `INVALID_LIMIT` for limits outside 1 through 1000 or for
+  non-finite/non-integer values. Clamp explicit limits and `defaultHistoryLimit`
+  to this range before upgrading.
 
 ### Fixed
+
+- Skip redundant balance patches when a failed spend or transfer did not advance regeneration.
 
 - **Ledger delta correctness** — `earn` and the receiver leg of `transfer` now
   record the actual balance change in `delta`, not the requested amount. When a

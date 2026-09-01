@@ -32,7 +32,7 @@ const energy = await wallet.balance(ctx, subjectRef, "energy"); // regen-aware
 pnpm add @vllnt/convex-wallet
 ```
 
-Peer dependency: `convex@^1.41.0`.
+Peer dependency: `convex@^1.45.0`.
 
 ## Usage
 
@@ -89,9 +89,9 @@ export const energy = query({
 | `transfer(ctx, fromRef, toRef, currency, amount, reason)` | mutation | `{ ok, balance, code? }` |
 | `balance(ctx, subjectRef, currency)` | query | `number` (regen-aware) |
 | `balances(ctx, subjectRef)` | query | `{ currency, amount }[]` |
-| `history(ctx, subjectRef, currency, limit?)` | query | `LedgerEntry[]` (newest-first) |
+| `history(ctx, subjectRef, currency, limit?)` | query | `LedgerEntry[]` (newest-first; `limit` must be an integer from 1 through 1000) |
 
-Full reference: [docs/API.md](docs/API.md) — including per-currency config, error codes (`INVALID_AMOUNT`, `INVALID_REGEN`, `INSUFFICIENT`, `SELF_TRANSFER`), and the regen model.
+Full reference: [docs/API.md](docs/API.md) — including per-currency config, error codes (`INVALID_AMOUNT`, `INVALID_REGEN`, `INVALID_LIMIT`, `INSUFFICIENT`, `SELF_TRANSFER`), and the regen model.
 
 ## React
 

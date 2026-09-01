@@ -159,7 +159,12 @@ export const spend = mutation({
     }
     const r = applyRegen(row.amount, row.lastRegenAt, now, args.regen);
     if (r.amount < args.amount) {
-      await ctx.db.patch("balances", row._id, { amount: r.amount, lastRegenAt: r.lastRegenAt });
+      if (r.amount !== row.amount || r.lastRegenAt !== row.lastRegenAt) {
+        await ctx.db.patch("balances", row._id, {
+          amount: r.amount,
+          lastRegenAt: r.lastRegenAt,
+        });
+      }
       return { ok: false, balance: r.amount, code: "INSUFFICIENT" as const };
     }
     const balance = r.amount - args.amount;
@@ -219,10 +224,15 @@ export const transfer = mutation({
     }
     const fromR = applyRegen(fromRow.amount, fromRow.lastRegenAt, now, args.regen);
     if (fromR.amount < args.amount) {
-      await ctx.db.patch("balances", fromRow._id, {
-        amount: fromR.amount,
-        lastRegenAt: fromR.lastRegenAt,
-      });
+      if (
+        fromR.amount !== fromRow.amount ||
+        fromR.lastRegenAt !== fromRow.lastRegenAt
+      ) {
+        await ctx.db.patch("balances", fromRow._id, {
+          amount: fromR.amount,
+          lastRegenAt: fromR.lastRegenAt,
+        });
+      }
       return { ok: false, balance: fromR.amount, code: "INSUFFICIENT" as const };
     }
     const fromBalance = fromR.amount - args.amount;

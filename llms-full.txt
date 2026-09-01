@@ -40,7 +40,7 @@ const energy = await wallet.balance(ctx, subjectRef, "energy"); // regen-aware
 pnpm add @vllnt/convex-wallet
 ```
 
-Peer dependency: `convex@^1.41.0`.
+Peer dependency: `convex@^1.45.0`.
 
 ## Usage
 
@@ -97,9 +97,9 @@ export const energy = query({
 | `transfer(ctx, fromRef, toRef, currency, amount, reason)` | mutation | `{ ok, balance, code? }` |
 | `balance(ctx, subjectRef, currency)` | query | `number` (regen-aware) |
 | `balances(ctx, subjectRef)` | query | `{ currency, amount }[]` |
-| `history(ctx, subjectRef, currency, limit?)` | query | `LedgerEntry[]` (newest-first) |
+| `history(ctx, subjectRef, currency, limit?)` | query | `LedgerEntry[]` (newest-first; `limit` must be an integer from 1 through 1000) |
 
-Full reference: [docs/API.md](docs/API.md) — including per-currency config, error codes (`INVALID_AMOUNT`, `INVALID_REGEN`, `INSUFFICIENT`, `SELF_TRANSFER`), and the regen model.
+Full reference: [docs/API.md](docs/API.md) — including per-currency config, error codes (`INVALID_AMOUNT`, `INVALID_REGEN`, `INVALID_LIMIT`, `INSUFFICIENT`, `SELF_TRANSFER`), and the regen model.
 
 ## React
 
@@ -164,7 +164,23 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+
+- Treat Convex `_generated` output as CLI-owned, exclude it from formatting, and expose a
+  dedicated codegen script.
+- Refresh all direct dependencies to their latest compatible releases for canary validation.
+- Require `convex@^1.45.0` and update `convex-test` to `^0.0.56`.
+- Bound ledger history reads to integer limits from 1 through 1000.
+
+### Breaking
+
+- `history` now throws `INVALID_LIMIT` for limits outside 1 through 1000 or for
+  non-finite/non-integer values. Clamp explicit limits and `defaultHistoryLimit`
+  to this range before upgrading.
+
 ### Fixed
+
+- Skip redundant balance patches when a failed spend or transfer did not advance regeneration.
 
 - **Ledger delta correctness** — `earn` and the receiver leg of `transfer` now
   record the actual balance change in `delta`, not the requested amount. When a
@@ -229,7 +245,7 @@ All notable changes to this project are documented here. The format is based on
 
 # API Reference — @vllnt/convex-wallet
 
-**Compatibility:** `convex@^1.41.0`
+**Compatibility:** `convex@^1.45.0`
 
 Construct the client with the mounted component and optional per-currency config:
 
@@ -324,7 +340,8 @@ static.
 ### `history(ctx, subjectRef, currency, limit?) → LedgerEntry[]`
 
 Newest-first ledger entries for one currency, capped at `limit` (default
-`defaultHistoryLimit`). Each entry is
+`defaultHistoryLimit`). `limit` must be an integer from 1 through 1000; invalid
+values throw `INVALID_LIMIT`. Each entry is
 `{ currency, delta, reason, idempotencyKey?, createdAt }`, where `delta` is
 positive on earn / receive and negative on spend / send.
 
@@ -1065,7 +1082,7 @@ export const earn = mutation({
       const r = applyRegen(row.amount, row.lastRegenAt, now, args.regen);
       balance = clampToMax(r.amount + args.amount, args.max);
       delta = balance - r.amount;
-      await ctx.db.patch(row._id, {
+      await ctx.db.patch("balances", row._id, {
         amount: balance,
         lastRegenAt: r.lastRegenAt,
         lifetimeEarned: row.lifetimeEarned + delta,
@@ -1128,11 +1145,16 @@ export const spend = mutation({
     }
     const r = applyRegen(row.amount, row.lastRegenAt, now, args.regen);
     if (r.amount < args.amount) {
-      await ctx.db.patch(row._id, { amount: r.amount, lastRegenAt: r.lastRegenAt });
+      if (r.amount !== row.amount || r.lastRegenAt !== row.lastRegenAt) {
+        await ctx.db.patch("balances", row._id, {
+          amount: r.amount,
+          lastRegenAt: r.lastRegenAt,
+        });
+      }
       return { ok: false, balance: r.amount, code: "INSUFFICIENT" as const };
     }
     const balance = r.amount - args.amount;
-    await ctx.db.patch(row._id, {
+    await ctx.db.patch("balances", row._id, {
       amount: balance,
       lastRegenAt: r.lastRegenAt,
       lifetimeSpent: row.lifetimeSpent + args.amount,
@@ -1188,14 +1210,19 @@ export const transfer = mutation({
     }
     const fromR = applyRegen(fromRow.amount, fromRow.lastRegenAt, now, args.regen);
     if (fromR.amount < args.amount) {
-      await ctx.db.patch(fromRow._id, {
-        amount: fromR.amount,
-        lastRegenAt: fromR.lastRegenAt,
-      });
+      if (
+        fromR.amount !== fromRow.amount ||
+        fromR.lastRegenAt !== fromRow.lastRegenAt
+      ) {
+        await ctx.db.patch("balances", fromRow._id, {
+          amount: fromR.amount,
+          lastRegenAt: fromR.lastRegenAt,
+        });
+      }
       return { ok: false, balance: fromR.amount, code: "INSUFFICIENT" as const };
     }
     const fromBalance = fromR.amount - args.amount;
-    await ctx.db.patch(fromRow._id, {
+    await ctx.db.patch("balances", fromRow._id, {
       amount: fromBalance,
       lastRegenAt: fromR.lastRegenAt,
       lifetimeSpent: fromRow.lifetimeSpent + args.amount,
@@ -1230,7 +1257,7 @@ export const transfer = mutation({
       const toR = applyRegen(toRow.amount, toRow.lastRegenAt, now, args.regen);
       const credited = clampToMax(toR.amount + args.amount, args.max);
       receiverDelta = credited - toR.amount;
-      await ctx.db.patch(toRow._id, {
+      await ctx.db.patch("balances", toRow._id, {
         amount: credited,
         lastRegenAt: toR.lastRegenAt,
         lifetimeEarned: toRow.lifetimeEarned + receiverDelta,
@@ -1254,10 +1281,26 @@ export const transfer = mutation({
 ## src/component/queries.ts
 
 ```ts
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { query } from "./_generated/server";
 import { applyRegen } from "../shared";
 import { balanceEntry, ledgerDoc, regenArg, regenMapArg } from "./validators";
+
+const MAX_HISTORY_LIMIT = 1000;
+
+function validateHistoryLimit(limit: number): void {
+  if (
+    !Number.isFinite(limit) ||
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > MAX_HISTORY_LIMIT
+  ) {
+    throw new ConvexError({
+      code: "INVALID_LIMIT",
+      message: `limit must be an integer between 1 and ${MAX_HISTORY_LIMIT}`,
+    });
+  }
+}
 
 /**
  * Regen-aware single-currency read. Projects the stored balance forward to the
@@ -1314,6 +1357,7 @@ export const history = query({
   args: { subjectRef: v.string(), currency: v.string(), limit: v.number() },
   returns: v.array(ledgerDoc),
   handler: async (ctx, args) => {
+    validateHistoryLimit(args.limit);
     const rows = await ctx.db
       .query("ledger")
       .withIndex("by_subject_currency", (q) =>

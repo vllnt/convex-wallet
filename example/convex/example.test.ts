@@ -742,6 +742,29 @@ describe("wallet — deterministic regen (server clock via fake timers)", () => 
     expect(ok).toEqual({ ok: true, balance: 1 });
   });
 
+  test("transfer persists sender regen when the accrued balance is still insufficient", async () => {
+    const t = setup();
+    await t.mutation(api.example.earnEnergyViaClient, {
+      subjectRef: "short-sender",
+      amount: 2,
+      reason: "start",
+    });
+    setClock(2000);
+    const fail = await t.mutation(api.example.transferCall, {
+      fromRef: "short-sender",
+      toRef: "receiver",
+      currency: "energy",
+      amount: 100,
+      reason: "gift",
+    });
+    expect(fail).toEqual({ ok: false, balance: 4, code: "INSUFFICIENT" });
+    expect(
+      await t.query(api.example.balanceEnergyViaClient, {
+        subjectRef: "short-sender",
+      }),
+    ).toBe(4);
+  });
+
   test("transfer applies regen to receiver's existing balance", async () => {
     const t = setup();
     await t.mutation(api.example.earnEnergyViaClient, {
@@ -1004,23 +1027,21 @@ describe("wallet — spend idempotency", () => {
 });
 
 describe("wallet — history edge cases", () => {
-  test("history limit 0 → empty array", async () => {
-    const t = setup();
-    await t.mutation(api.example.earn, {
-      subjectRef: "hlim",
-      currency: "coins",
-      amount: 1,
-      reason: "a",
-    });
-    const h = await t.query(api.example.historyCall, {
-      subjectRef: "hlim",
-      currency: "coins",
-      limit: 0,
-    });
-    expect(h).toHaveLength(0);
-  });
+  test.each([0, 1001, 1.5, Number.POSITIVE_INFINITY])(
+    "history rejects an invalid bounded limit (%s)",
+    async (limit) => {
+      const t = setup();
+      await expect(
+        t.query(api.example.historyCall, {
+          subjectRef: "hlim",
+          currency: "coins",
+          limit,
+        }),
+      ).rejects.toMatchObject({ data: { code: "INVALID_LIMIT" } });
+    },
+  );
 
-  test("history large limit → no error, returns all rows", async () => {
+  test("history accepts the maximum limit and returns available rows", async () => {
     const t = setup();
     await t.mutation(api.example.earn, {
       subjectRef: "hbig",
@@ -1037,7 +1058,7 @@ describe("wallet — history edge cases", () => {
     const h = await t.query(api.example.historyCall, {
       subjectRef: "hbig",
       currency: "coins",
-      limit: 9999,
+      limit: 1000,
     });
     expect(h).toHaveLength(2);
   });
