@@ -1,7 +1,23 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { query } from "./_generated/server";
 import { applyRegen } from "../shared";
 import { balanceEntry, ledgerDoc, regenArg, regenMapArg } from "./validators";
+
+const MAX_HISTORY_LIMIT = 1000;
+
+function validateHistoryLimit(limit: number): void {
+  if (
+    !Number.isFinite(limit) ||
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > MAX_HISTORY_LIMIT
+  ) {
+    throw new ConvexError({
+      code: "INVALID_LIMIT",
+      message: `limit must be an integer between 1 and ${MAX_HISTORY_LIMIT}`,
+    });
+  }
+}
 
 /**
  * Regen-aware single-currency read. Projects the stored balance forward to the
@@ -58,6 +74,7 @@ export const history = query({
   args: { subjectRef: v.string(), currency: v.string(), limit: v.number() },
   returns: v.array(ledgerDoc),
   handler: async (ctx, args) => {
+    validateHistoryLimit(args.limit);
     const rows = await ctx.db
       .query("ledger")
       .withIndex("by_subject_currency", (q) =>

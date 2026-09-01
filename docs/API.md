@@ -1,6 +1,6 @@
 # API Reference — @vllnt/convex-wallet
 
-**Compatibility:** `convex@^1.41.0`
+**Compatibility:** `convex@^1.45.0`
 
 Construct the client with the mounted component and optional per-currency config:
 
@@ -95,7 +95,8 @@ static.
 ### `history(ctx, subjectRef, currency, limit?) → LedgerEntry[]`
 
 Newest-first ledger entries for one currency, capped at `limit` (default
-`defaultHistoryLimit`). Each entry is
+`defaultHistoryLimit`). `limit` must be an integer from 1 through 1000; invalid
+values throw `INVALID_LIMIT`. Each entry is
 `{ currency, delta, reason, idempotencyKey?, createdAt }`, where `delta` is
 positive on earn / receive and negative on spend / send.
 
