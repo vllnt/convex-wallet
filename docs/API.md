@@ -2,7 +2,8 @@
 
 **Compatibility:** `convex@^1.45.0`
 
-Construct the client with the mounted component and optional per-currency config:
+Construct the client with the mounted component and optional per-currency
+config:
 
 ```ts
 import { Wallet } from "@vllnt/convex-wallet";
@@ -29,9 +30,9 @@ Every value-moving call (`earn` / `grant` / `spend` / `transfer`) **throws
 (rejects `0`, negatives, `NaN`, `Infinity`). A negative `spend` can never mint
 funds.
 
-Any call passing a `regen` config with a non-finite or non-positive `intervalMs`,
-`amount`, or `cap` **throws `INVALID_REGEN`** — this prevents `0 * Infinity = NaN`
-from corrupting the `lastRegenAt` field.
+Any call passing a `regen` config with a non-finite or non-positive
+`intervalMs`, `amount`, or `cap` **throws `INVALID_REGEN`** — this prevents
+`0 * Infinity = NaN` from corrupting the `lastRegenAt` field.
 
 The `delta` field in each ledger row is the **actual balance change**, not the
 requested amount. When a credit is clamped by `max` or regen state, `delta`
@@ -50,31 +51,31 @@ independent. Creates the balance row if the subject did not hold the currency.
 
 ### `grant(ctx, subjectRef, currency, amount, reason, idempotencyKey) → { balance }`
 
-`earn` with a **required** `idempotencyKey` — credit exactly once per key (scoped
-per subject + currency). Use after the host has verified an IAP / Stripe
+`earn` with a **required** `idempotencyKey` — credit exactly once per key
+(scoped per subject + currency). Use after the host has verified an IAP / Stripe
 purchase, keyed on the receipt id.
 
 ### `spend(ctx, subjectRef, currency, amount, reason, opts?) → { ok, balance, code? }`
 
 Debit `amount` of `currency`. Never goes negative — when the (regen-aware)
 balance is short, returns `{ ok: false, balance, code: "INSUFFICIENT" }` while
-still persisting any regen that accrued. On success returns `{ ok: true, balance }`
-with the new balance. `code` is a stable, machine-readable tag; `reason` is the
-free-text ledger note.
+still persisting any regen that accrued. On success returns
+`{ ok: true, balance }` with the new balance. `code` is a stable,
+machine-readable tag; `reason` is the free-text ledger note.
 
-`opts.idempotencyKey` makes spend replay-safe: if this `(subjectRef, currency,
-idempotencyKey)` tuple was already recorded, the call is a no-op — it returns the
-current (regen-aware) balance without a second debit or ledger row. Use this to
-prevent double-charges on host retries.
+`opts.idempotencyKey` makes spend replay-safe: if this
+`(subjectRef, currency, idempotencyKey)` tuple was already recorded, the call is
+a no-op — it returns the current (regen-aware) balance without a second debit or
+ledger row. Use this to prevent double-charges on host retries.
 
 ### `transfer(ctx, fromRef, toRef, currency, amount, reason) → { ok, balance, code? }`
 
 Move `amount` of `currency` from `fromRef` to `toRef` in one transaction. Debits
-the sender (same insufficiency guard as `spend`); on success credits the receiver
-(creating their balance if needed, clamped to `max`) and ledgers both legs.
-`balance` is the sender's new balance. `fromRef === toRef` is rejected with
-`{ ok: false, balance, code: "SELF_TRANSFER" }` and never debits-then-credits a
-single row.
+the sender (same insufficiency guard as `spend`); on success credits the
+receiver (creating their balance if needed, clamped to `max`) and ledgers both
+legs. `balance` is the sender's new balance. `fromRef === toRef` is rejected
+with `{ ok: false, balance, code: "SELF_TRANSFER" }` and never
+debits-then-credits a single row.
 
 ## Queries
 
@@ -110,5 +111,10 @@ idempotent / at-least-once safe) inside the component — never the host:
 - clears the `idempotencyKey` of rows older than the idempotency window
   (`DEFAULT_IDEMPOTENCY_TTL_MS`, 7 days) so a key may be reused afterward.
 
-A host needing different windows can call `pruneLedger` directly with its own
-`{ retentionMs, idempotencyTtlMs }`.
+`pruneLedger` is an internal component mutation, not a host-callable API.
+Neither retention nor idempotency TTL is configurable through `WalletOptions`;
+the supported options are `currencies` and `defaultHistoryLimit` only. The sweep
+is bounded, so these windows are cleanup thresholds, not exact expiry deadlines.
+Do not rely on replay protection after a key is expired or its ledger row
+deleted. Earn/grant and spend share the same key namespace: use distinct keys
+for distinct operations. Transfers have no idempotency-key option.

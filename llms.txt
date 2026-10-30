@@ -5,6 +5,15 @@
 `@vllnt/convex-wallet` is a publishable Convex component. It targets `convex@^1.45.0`.
 It holds per-subject balances of any consumable currency (coins, energy, gems, credits) in two sandboxed tables - `balances` (one per `(subjectRef, currency)`, with `amount`, `lastRegenAt`, and lifetime counters) and `ledger` (a signed-`delta` row per change reflecting the actual balance change, with an optional `idempotencyKey` indexed per `(subjectRef, currency, idempotencyKey)`). Spend and transfer are atomic within the Convex mutation transaction, so balances never go negative and grants never double-credit. Every value-moving call rejects non-finite or non-positive amounts (`INVALID_AMOUNT`), so a negative `spend` can never mint funds; `transfer` rejects self-transfer (`SELF_TRANSFER`); a rejected spend/transfer returns a typed `code` (`INSUFFICIENT` | `SELF_TRANSFER`). `spend` accepts an optional `idempotencyKey` to prevent double-charges on host retries. Energy-style currencies regenerate lazily on read via a pure `applyRegen` helper (gain `amount` per `intervalMs` up to `cap`, monotonic against a backwards/stale clock, never reducing a balance below its stored value); regen config fields are validated and throw `INVALID_REGEN` for non-finite or non-positive values; **time is server-sourced** - every handler reads `Date.now()` itself, and the `Wallet` client injects each currency's `regen` rule and optional `max` ceiling. Ledger `delta` reflects the actual balance change (clamped credits record the real increase, not the requested amount). Ledger history accepts only integer limits from 1 through 1000 and throws `INVALID_LIMIT` otherwise. An internal hourly cron prunes old ledger rows and expires stale idempotency keys (idempotent / at-least-once). The host owns identity, meaning, and payment confirmation - it verifies any IAP / Stripe purchase, then calls `grant`. The component never processes payments.
 
+Client options are only `currencies` (default `{}`) and `defaultHistoryLimit`
+(default 50, integer 1–1000). Retention (90 days) and key expiry (7 days) are
+fixed internal hourly-sweep thresholds, not client options or precise deadlines;
+`pruneLedger` is not host-callable. Replay protection is retention-bounded;
+earn/grant and spend share a key namespace. Transfer has no idempotency option
+and receiver caps can discard part of the transferred amount. Multiple named
+mounts isolate balances and maintenance. React >=18 is optional; Convex is required.
+The README follows the current npm `canary` surface; the default channel is stable.
+
 ## Docs
 
 - [README](README.md): Project overview, installation, usage examples, architecture
@@ -23,4 +32,3 @@ It holds per-subject balances of any consumable currency (coins, energy, gems, c
 - [Security Policy](SECURITY.md): Vulnerability reporting policy
 - [Code of Conduct](CODE_OF_CONDUCT.md): Community participation guidelines
 - [License](LICENSE): MIT license
-- [Full source bundle](llms-full.txt): Aggregated README, changelog, API docs, and key source files
