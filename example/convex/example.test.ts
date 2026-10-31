@@ -16,6 +16,9 @@ function setup() {
  * Pin the server clock. The component reads `Date.now()` itself (server-source
  * time), so a test drives regen by advancing the fake system time — never by
  * passing a host-supplied `now` the host could forge.
+ *
+ * convex-test pins each transaction at or after the previous commit, so writes
+ * land a few ms after the pinned clock: assert mid-tick, not on a tick boundary.
  */
 function setClock(ms: number) {
   vi.setSystemTime(ms);
@@ -777,7 +780,7 @@ describe("wallet — deterministic regen (server clock via fake timers)", () => 
       amount: 2,
       reason: "start",
     });
-    setClock(3000);
+    setClock(3500);
     // receiver regens 3 ticks (2→5) then +3 transferred = 8
     const r = await t.mutation(api.example.transferCall, {
       fromRef: "from",
