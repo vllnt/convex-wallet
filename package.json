@@ -1,6 +1,6 @@
 {
   "name": "@vllnt/convex-wallet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Consumable balances and economy ledger with atomic spend and lazy regen, as a Convex component",
   "license": "MIT",
   "type": "module",

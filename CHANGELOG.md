@@ -1,20 +1,48 @@
 # Changelog
 
 All notable changes to this project are documented here. The format is based on
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.1] - Unreleased
+
+### Fixed
+
+- `earn` and the receiver leg of `transfer` could lower a balance: when a
+  currency's `max` was below the stored balance (for example after the host
+  lowered it), the credit clamped down to `max`, debiting the subject and
+  writing a negative `delta`. A credit now never lowers a balance; it is a no-op
+  ledger row with `delta` 0.
+- An `idempotencyKey` recorded by a credit and reused on a debit (or the
+  reverse) for the same subject and currency was treated as a replay, silently
+  skipping the second operation. It now throws `IDEMPOTENCY_KEY_REUSED`.
+- Credits that would push a balance or `lifetimeEarned` past 2^53 - 1 (where
+  numbers lose precision) throw `BALANCE_OVERFLOW`; amounts above 2^53 - 1 throw
+  `INVALID_AMOUNT`.
+- A `NaN` or negative `max` (which could store a `NaN` balance) throws
+  `INVALID_MAX`. Empty `subjectRef`, `fromRef`, `toRef`, `currency`, `reason` or
+  `idempotencyKey` throw `INVALID_ARGUMENT`.
+- The `/test` entry type-checks for consumers using `moduleResolution`
+  `nodenext` (explicit `.js` relative imports, `vite/client` types).
 
 ### Changed
 
-- Treat Convex `_generated` output as CLI-owned, exclude it from formatting, and expose a
-  dedicated codegen script.
-- Refresh all direct dependencies to their latest compatible releases for canary validation.
+- Test files are no longer included in the published package.
+- Tooling: pnpm 10 with a release-age gate, tag-only stable releases with npm
+  provenance, pinned CI actions, patched transitive dependencies.
+
+## [0.1.0] - 2026-09-01
+
+### Changed
+
+- Treat Convex `_generated` output as CLI-owned, exclude it from formatting, and
+  expose a dedicated codegen script.
+- Refresh all direct dependencies to their latest compatible releases for canary
+  validation.
 - Require `convex@^1.45.0` and update `convex-test` to `^0.0.56`.
 - Bound ledger history reads to integer limits from 1 through 1000.
 
-### Breaking
+### Breaking (relative to the 0.1.0 canaries)
 
 - `history` now throws `INVALID_LIMIT` for limits outside 1 through 1000 or for
   non-finite/non-integer values. Clamp explicit limits and `defaultHistoryLimit`
@@ -22,7 +50,8 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
-- Skip redundant balance patches when a failed spend or transfer did not advance regeneration.
+- Skip redundant balance patches when a failed spend or transfer did not advance
+  regeneration.
 
 - **Ledger delta correctness** — `earn` and the receiver leg of `transfer` now
   record the actual balance change in `delta`, not the requested amount. When a
@@ -40,14 +69,6 @@ All notable changes to this project are documented here. The format is based on
   replay of an already-recorded key returns the current balance without a second
   debit or ledger row, preventing double-charges on host retries.
 
-### Added (initial scaffold)
-
-- Initial scaffold.
-
-## [0.1.0] - 2026-06-12
-
-### Added
-
 - First release of `@vllnt/convex-wallet`.
 - Per-currency `max` ceiling — credits clamp to it on `earn`, `grant`, and the
   receiver leg of `transfer`.
@@ -58,11 +79,11 @@ All notable changes to this project are documented here. The format is based on
 ### Security / Fixed
 
 - **Amount guards (abuse)** — `earn` / `grant` / `spend` / `transfer` now reject
-  non-finite or non-positive amounts with `INVALID_AMOUNT`. Closes a mint exploit
-  where a negative `spend` credited funds, and balance corruption from `NaN` /
-  `Infinity`.
-- **Server-sourced time** — the host no longer supplies `now`; every mutation and
-  query reads `Date.now()` server-side, so a forged/stale clock cannot drive
+  non-finite or non-positive amounts with `INVALID_AMOUNT`. Closes a mint
+  exploit where a negative `spend` credited funds, and balance corruption from
+  `NaN` / `Infinity`.
+- **Server-sourced time** — the host no longer supplies `now`; every mutation
+  and query reads `Date.now()` server-side, so a forged/stale clock cannot drive
   extra regen. Removed the `*At` example wrappers.
 - **Monotonic regen** — `applyRegen` never advances the regen pointer past `now`
   and treats a backwards/equal clock as a no-op (no over-regen, no rewind).
@@ -77,5 +98,5 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
-- Failure results carry a typed `code` (`INSUFFICIENT` | `SELF_TRANSFER`) instead
-  of a free-text `reason`; `reason` remains the human ledger note.
+- Failure results carry a typed `code` (`INSUFFICIENT` | `SELF_TRANSFER`)
+  instead of a free-text `reason`; `reason` remains the human ledger note.

@@ -25,8 +25,10 @@ const energy = await wallet.balance(ctx, subjectRef, "energy"); // regen-aware
 
 - **Atomic spend** — debits ride the Convex mutation transaction; never goes
   negative, never double-spends.
-- **Abuse-guarded amounts** — every value-moving call rejects non-finite or
-  non-positive amounts (`INVALID_AMOUNT`).
+- **Abuse-guarded amounts** — every value-moving call rejects non-finite,
+  non-positive or above-2^53 amounts (`INVALID_AMOUNT`), overflowing balances
+  (`BALANCE_OVERFLOW`), empty identifiers (`INVALID_ARGUMENT`) and a reused
+  idempotency key across credit and debit (`IDEMPOTENCY_KEY_REUSED`).
 - **Typed ledger** — every earn / spend / transfer records a signed `delta` (the
   actual change), `reason`, and timestamp.
 - **Idempotent grants & spend** — credit/debit exactly once per
@@ -185,6 +187,22 @@ pnpm test:coverage  # enforced 100% on covered files
 Tests use the simulated `convex-test` backend (`@edge-runtime/vm`), not a real
 Convex deployment; they do not prove production concurrency or scheduler
 delivery.
+
+### Testing your app
+
+`@vllnt/convex-wallet/test` exports `register(t, name = "wallet")` to mount the
+component in a `convex-test` instance. It needs `convex-test` and `vitest` (with
+Vite's `import.meta.glob`) in the consuming app:
+
+```ts
+/// <reference types="vite/client" />
+import { convexTest } from "convex-test";
+import { register } from "@vllnt/convex-wallet/test";
+import schema from "./schema";
+
+const t = convexTest(schema, import.meta.glob("./**/*.ts"));
+register(t);
+```
 
 ## Contributing
 
