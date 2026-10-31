@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
-import { query } from "./_generated/server";
-import { applyRegen } from "../shared";
-import { balanceEntry, ledgerDoc, regenArg, regenMapArg } from "./validators";
+import { query } from "./_generated/server.js";
+import { applyRegen } from "../shared.js";
+import { balanceEntry, ledgerDoc, regenArg, regenMapArg } from "./validators.js";
 
 const MAX_HISTORY_LIMIT = 1000;
 

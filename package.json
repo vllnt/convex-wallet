@@ -1,13 +1,14 @@
 {
   "name": "@vllnt/convex-wallet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Consumable balances and economy ledger with atomic spend and lazy regen, as a Convex component",
   "license": "MIT",
   "type": "module",
-  "packageManager": "pnpm@9.15.4",
+  "packageManager": "pnpm@10.34.8",
   "files": [
     "dist",
-    "src"
+    "src",
+    "!src/**/*.test.*"
   ],
   "exports": {
     "./package.json": "./package.json",
@@ -41,17 +42,14 @@
     "build": "tsc --project ./tsconfig.build.json",
     "build:codegen": "pnpm codegen && pnpm build",
     "build:clean": "rm -rf dist *.tsbuildinfo && pnpm build:codegen",
-    "typecheck": "tsc --noEmit",
-    "typecheck:ci": "tsc --noEmit --project tsconfig.ci.json",
-    "lint": "pnpm check:agents && eslint .",
+    "typecheck": "tsc --noEmit --incremental --tsBuildInfoFile node_modules/.cache/tsc/typecheck.tsbuildinfo",
+    "typecheck:ci": "tsc --noEmit --incremental --tsBuildInfoFile node_modules/.cache/tsc/typecheck-ci.tsbuildinfo --project tsconfig.ci.json",
+    "lint": "pnpm check:agents && eslint --cache --cache-location node_modules/.cache/eslint/ .",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest --typecheck --clearScreen false",
     "test:coverage": "vitest run --coverage --coverage.reporter=text",
     "generate:llms": "node scripts/generate-llms.mjs",
     "preversion": "pnpm install --frozen-lockfile && pnpm build && pnpm test:coverage && pnpm typecheck && pnpm generate:llms",
-    "prepublishOnly": "npm whoami || npm login",
-    "alpha": "npm version prerelease --preid alpha && npm publish --tag alpha && git push --follow-tags",
-    "release": "npm version patch && npm publish && git push --follow-tags",
     "check:agents": "node -e \"const f=require('node:fs');if(!f.existsSync('AGENTS.md')||f.existsSync('CLAUDE.md')||f.existsSync('.claude'))process.exit(1)\"",
     "codegen": "pnpm convex codegen --component-dir ./src/component"
   },
@@ -114,11 +112,15 @@
   ],
   "pnpm": {
     "overrides": {
-      "brace-expansion@<1.1.21": "^1.1.21",
-      "brace-expansion@>=5.0.0 <5.0.12": "^5.0.12",
-      "handlebars@<4.7.10": "^4.7.10",
-      "source-map-js@<1.2.2": "^1.2.2",
-      "zod@<4.6.6": "^4.6.6"
-    }
+      "deepmerge-ts@<8.0.0": "8.0.2",
+      "handlebars@<4.7.10": "^4.7.10"
+    },
+    "minimumReleaseAge": 10080,
+    "minimumReleaseAgeExclude": [
+      "@vllnt/*"
+    ],
+    "ignoredBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

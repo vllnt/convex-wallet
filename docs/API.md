@@ -27,8 +27,27 @@ ceiling automatically; **time is server-sourced** — every handler reads
 
 Every value-moving call (`earn` / `grant` / `spend` / `transfer`) **throws
 `INVALID_AMOUNT`** when `amount` is not a finite number strictly greater than 0
-(rejects `0`, negatives, `NaN`, `Infinity`). A negative `spend` can never mint
-funds.
+and at most `Number.MAX_SAFE_INTEGER` (rejects `0`, negatives, `NaN`,
+`Infinity`, and values past 2^53 - 1). A negative `spend` can never mint funds.
+Fractional amounts are accepted, but floating-point sums are not exact: use
+integer minor units (for example cents) for money-like currencies.
+
+| Error code (`ConvexError` `data.code`) | Thrown when                                                                                   |
+| -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `INVALID_ARGUMENT`                     | `subjectRef`, `fromRef`, `toRef`, `currency`, `reason` or `idempotencyKey` is an empty string |
+| `INVALID_MAX`                          | a currency `max` is `NaN` or negative                                                         |
+| `BALANCE_OVERFLOW`                     | a credit would push a balance or `lifetimeEarned` past 2^53 - 1 (nothing is written)          |
+| `IDEMPOTENCY_KEY_REUSED`               | a key recorded by a credit is reused on a debit, or the reverse                               |
+| `INVALID_LIMIT`                        | `history` limit is not an integer from 1 through 1000                                         |
+
+(`INVALID_AMOUNT` and `INVALID_REGEN` are thrown as plain `Error`s whose message
+is the code.) A credit never lowers a balance: if the stored balance is already
+above `max`, the credit is a no-op row with `delta` 0.
+
+Mutations are serializable Convex transactions, so concurrent retries of the
+same `idempotencyKey` apply once. The ledger reconciles with the balance only
+for non-regen currencies while rows are retained: regen ticks are not ledgered,
+and the sweep deletes rows after the retention window.
 
 Any call passing a `regen` config with a non-finite or non-positive
 `intervalMs`, `amount`, or `cap` **throws `INVALID_REGEN`** — this prevents
