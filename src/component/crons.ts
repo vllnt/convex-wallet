@@ -1,9 +1,9 @@
 import { cronJobs } from "convex/server";
-import { internal } from "./_generated/api";
+import { internal } from "./_generated/api.js";
 import {
   DEFAULT_IDEMPOTENCY_TTL_MS,
   DEFAULT_LEDGER_RETENTION_MS,
-} from "../shared";
+} from "../shared.js";
 
 /**
  * The wallet's own scheduled maintenance. Scheduling lives INSIDE the component

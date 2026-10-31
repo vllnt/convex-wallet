@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation } from "./_generated/server";
+import { internalMutation } from "./_generated/server.js";
 
 /** Hard cap on rows touched per sweep invocation — keeps each run bounded. */
 const PRUNE_BATCH = 256;
