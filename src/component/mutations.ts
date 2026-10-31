@@ -1,9 +1,17 @@
 import { v } from "convex/values";
-import type { DataModel } from "./_generated/dataModel";
+import type { DataModel } from "./_generated/dataModel.js";
 import type { GenericMutationCtx } from "convex/server";
-import { mutation } from "./_generated/server";
-import { applyRegen, assertPositiveAmount } from "../shared";
-import { maxArg, regenArg, spendResult } from "./validators";
+import { mutation } from "./_generated/server.js";
+import {
+  applyRegen,
+  assertNonEmpty,
+  assertPositiveAmount,
+  assertSafeBalance,
+  assertValidMax,
+  fail,
+  IDEMPOTENCY_KEY_REUSED,
+} from "../shared.js";
+import { maxArg, regenArg, spendResult } from "./validators.js";
 
 const balanceObject = v.object({ balance: v.number() });
 
@@ -31,9 +39,46 @@ async function findIdempotent(
     .first();
 }
 
-/** Clamp a post-credit balance to an optional per-currency `max` ceiling. */
-function clampToMax(balance: number, max: number | undefined): number {
-  return max === undefined ? balance : Math.min(balance, max);
+/**
+ * Clamp a post-credit balance to an optional per-currency `max` ceiling. A
+ * credit never lowers the balance: when `before` is already above `max` (the
+ * host lowered it), the balance is left as is and the credit is a no-op.
+ * Throws `BALANCE_OVERFLOW` past 2^53 - 1.
+ */
+function clampToMax(
+  before: number,
+  credit: number,
+  max: number | undefined,
+): number {
+  const after = before + credit;
+  const clamped = max === undefined ? after : Math.max(before, Math.min(after, max));
+  assertSafeBalance(clamped);
+  return clamped;
+}
+
+/** Validate the string identifiers shared by every value-moving mutation. */
+function assertIdentifiers(
+  args: { currency: string; reason: string; idempotencyKey?: string },
+  subjects: Record<string, string>,
+): void {
+  for (const [name, value] of Object.entries(subjects)) {
+    assertNonEmpty(name, value);
+  }
+  assertNonEmpty("currency", args.currency);
+  assertNonEmpty("reason", args.reason);
+  if (args.idempotencyKey !== undefined) {
+    assertNonEmpty("idempotencyKey", args.idempotencyKey);
+  }
+}
+
+/** A recorded key may only be replayed by the same direction (credit vs debit). */
+function assertSameDirection(seen: { delta: number }, debit: boolean): void {
+  if (seen.delta < 0 !== debit) {
+    fail(
+      IDEMPOTENCY_KEY_REUSED,
+      "idempotencyKey was already used by a " + (debit ? "credit" : "debit"),
+    );
+  }
 }
 
 /**
@@ -54,7 +99,9 @@ export const earn = mutation({
   },
   returns: balanceObject,
   handler: async (ctx, args) => {
+    assertIdentifiers(args, { subjectRef: args.subjectRef });
     assertPositiveAmount(args.amount);
+    assertValidMax(args.max);
     const now = Date.now();
     const row = await ctx.db
       .query("balances")
@@ -68,7 +115,7 @@ export const earn = mutation({
     if (row === null) {
       // No balance row → no recorded key for it can exist, so the idempotency
       // check is unnecessary: this is always a first credit.
-      balance = clampToMax(args.amount, args.max);
+      balance = clampToMax(0, args.amount, args.max);
       delta = balance;
       await ctx.db.insert("balances", {
         subjectRef: args.subjectRef,
@@ -87,6 +134,7 @@ export const earn = mutation({
           args.idempotencyKey,
         );
         if (seen !== null) {
+          assertSameDirection(seen, false);
           // Replay: return the current (regen-aware) balance, no double-credit.
           return {
             balance: applyRegen(row.amount, row.lastRegenAt, now, args.regen).amount,
@@ -94,8 +142,9 @@ export const earn = mutation({
         }
       }
       const r = applyRegen(row.amount, row.lastRegenAt, now, args.regen);
-      balance = clampToMax(r.amount + args.amount, args.max);
+      balance = clampToMax(r.amount, args.amount, args.max);
       delta = balance - r.amount;
+      assertSafeBalance(row.lifetimeEarned + delta);
       await ctx.db.patch("balances", row._id, {
         amount: balance,
         lastRegenAt: r.lastRegenAt,
@@ -131,6 +180,7 @@ export const spend = mutation({
   },
   returns: spendResult,
   handler: async (ctx, args) => {
+    assertIdentifiers(args, { subjectRef: args.subjectRef });
     assertPositiveAmount(args.amount);
     const now = Date.now();
     const row = await ctx.db
@@ -150,6 +200,7 @@ export const spend = mutation({
         args.idempotencyKey,
       );
       if (seen !== null) {
+        assertSameDirection(seen, true);
         // Replay: return the current (regen-aware) balance, no double-debit.
         return {
           ok: true,
@@ -204,7 +255,9 @@ export const transfer = mutation({
   },
   returns: spendResult,
   handler: async (ctx, args) => {
+    assertIdentifiers(args, { fromRef: args.fromRef, toRef: args.toRef });
     assertPositiveAmount(args.amount);
+    assertValidMax(args.max);
     const now = Date.now();
     const fromRow = await ctx.db
       .query("balances")
@@ -257,7 +310,7 @@ export const transfer = mutation({
       .unique();
     let receiverDelta: number;
     if (toRow === null) {
-      const credited = clampToMax(args.amount, args.max);
+      const credited = clampToMax(0, args.amount, args.max);
       receiverDelta = credited;
       await ctx.db.insert("balances", {
         subjectRef: args.toRef,
@@ -269,8 +322,9 @@ export const transfer = mutation({
       });
     } else {
       const toR = applyRegen(toRow.amount, toRow.lastRegenAt, now, args.regen);
-      const credited = clampToMax(toR.amount + args.amount, args.max);
+      const credited = clampToMax(toR.amount, args.amount, args.max);
       receiverDelta = credited - toR.amount;
+      assertSafeBalance(toRow.lifetimeEarned + receiverDelta);
       await ctx.db.patch("balances", toRow._id, {
         amount: credited,
         lastRegenAt: toR.lastRegenAt,
