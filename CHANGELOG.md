@@ -8,7 +8,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- The ledger retention sweep schedules an immediate continuation when a run fills its batch, so a
+  backlog larger than one batch drains in one sweep instead of draining at most one batch per hour.
   backlog larger than one batch drains in one sweep instead of growing by up to one batch per hour.
 - `earn` and the receiver leg of `transfer` could lower a balance: when a
   currency's `max` was below the stored balance (for example after the host
