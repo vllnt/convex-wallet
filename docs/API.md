@@ -34,7 +34,7 @@ integer minor units (for example cents) for money-like currencies.
 
 | Error code (`ConvexError` `data.code`) | Thrown when                                                                                   |
 | -------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `INVALID_ARGUMENT`                     | `subjectRef`, `fromRef`, `toRef`, `currency`, `reason` or `idempotencyKey` is an empty string, or longer than 256 characters (1024 for `reason`) |
+| `INVALID_ARGUMENT`                     | `subjectRef`, `fromRef`, `toRef`, `currency`, `reason` or `idempotencyKey` is an empty string |
 | `INVALID_MAX`                          | a currency `max` is `NaN` or negative                                                         |
 | `BALANCE_OVERFLOW`                     | a credit would push a balance or `lifetimeEarned` past 2^53 - 1 (nothing is written)          |
 | `IDEMPOTENCY_KEY_REUSED`               | a key recorded by a credit is reused on a debit, or the reverse                               |

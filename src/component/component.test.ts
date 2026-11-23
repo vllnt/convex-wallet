@@ -134,42 +134,6 @@ describe("wallet component — retention and idempotency sweep", () => {
   });
 });
 
-describe("wallet component — identifier length caps", () => {
-  const long = "x".repeat(257);
-
-  test("a 256-character identifier and a 1024-character reason are accepted", async () => {
-    const t = setup();
-    const ref = "x".repeat(256);
-    expect(
-      await t.mutation(api.mutations.earn, {
-        subjectRef: ref,
-        currency: ref,
-        amount: 1,
-        reason: "r".repeat(1024),
-        idempotencyKey: ref,
-      }),
-    ).toEqual({ balance: 1 });
-  });
-
-  test.each(["subjectRef", "currency", "idempotencyKey"])("earn rejects a %s over 256 characters", async (field) => {
-    const t = setup();
-    await expect(
-      t.mutation(api.mutations.earn, { subjectRef: "u", currency: "coins", amount: 1, reason: "r", [field]: long }),
-    ).rejects.toMatchObject({ data: { code: "INVALID_ARGUMENT" } });
-  });
-
-  test("a reason over 1024 characters is rejected on spend and transfer", async () => {
-    const t = setup();
-    const reason = "r".repeat(1025);
-    await expect(
-      t.mutation(api.mutations.spend, { subjectRef: "u", currency: "coins", amount: 1, reason }),
-    ).rejects.toMatchObject({ data: { code: "INVALID_ARGUMENT" } });
-    await expect(
-      t.mutation(api.mutations.transfer, { fromRef: "a", toRef: long, currency: "coins", amount: 1, reason: "r" }),
-    ).rejects.toMatchObject({ data: { code: "INVALID_ARGUMENT" } });
-  });
-});
-
 async function expectCode(promise: Promise<unknown>, code: string) {
   await expect(promise).rejects.toMatchObject({ data: { code } });
 }
