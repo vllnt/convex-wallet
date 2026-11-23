@@ -34,7 +34,7 @@ integer minor units (for example cents) for money-like currencies.
 
 | Error code (`ConvexError` `data.code`) | Thrown when                                                                                   |
 | -------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `INVALID_ARGUMENT`                     | `subjectRef`, `fromRef`, `toRef`, `currency`, `reason` or `idempotencyKey` is an empty string |
+| `INVALID_ARGUMENT`                     | `subjectRef`, `fromRef`, `toRef`, `currency`, `reason` or `idempotencyKey` is an empty string, or longer than 256 characters (1024 for `reason`) |
 | `INVALID_MAX`                          | a currency `max` is `NaN` or negative                                                         |
 | `BALANCE_OVERFLOW`                     | a credit would push a balance or `lifetimeEarned` past 2^53 - 1 (nothing is written)          |
 | `IDEMPOTENCY_KEY_REUSED`               | a key recorded by a credit is reused on a debit, or the reverse                               |
@@ -126,7 +126,9 @@ The component schedules its own **hourly** internal sweep (`pruneLedger`,
 idempotent / at-least-once safe) inside the component — never the host:
 
 - deletes `ledger` rows older than the retention window
-  (`DEFAULT_LEDGER_RETENTION_MS`, 90 days), bounded per run;
+  (`DEFAULT_LEDGER_RETENTION_MS`, 90 days), bounded per run; a run that fills
+  its batch schedules an immediate continuation, so a backlog drains in one sweep
+  instead of one batch per hour;
 - clears the `idempotencyKey` of rows older than the idempotency window
   (`DEFAULT_IDEMPOTENCY_TTL_MS`, 7 days) so a key may be reused afterward.
 

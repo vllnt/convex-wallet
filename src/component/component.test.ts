@@ -109,6 +109,65 @@ describe("wallet component — retention and idempotency sweep", () => {
       expired: 0,
     });
   });
+
+  test("a full delete batch schedules one continuation that drains the backlog", async () => {
+    const t = setup();
+    for (let i = 0; i < 300; i++) {
+      await earn(t, `old-${i}`);
+    }
+    setClock(10_000);
+    expect(await prune(t, 5_000, 1)).toEqual({ deleted: 256, expired: 0 });
+    const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    expect(scheduled).toHaveLength(1);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await t.run((ctx) => ctx.db.query("ledger").collect())).toHaveLength(0);
+    const after = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    expect(after).toHaveLength(1);
+  });
+
+  test("a partial batch schedules no continuation", async () => {
+    const t = setup();
+    await earn(t, "old");
+    setClock(10_000);
+    expect(await prune(t, 5_000, 1)).toEqual({ deleted: 1, expired: 0 });
+    expect(await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect())).toHaveLength(0);
+  });
+});
+
+describe("wallet component — identifier length caps", () => {
+  const long = "x".repeat(257);
+
+  test("a 256-character identifier and a 1024-character reason are accepted", async () => {
+    const t = setup();
+    const ref = "x".repeat(256);
+    expect(
+      await t.mutation(api.mutations.earn, {
+        subjectRef: ref,
+        currency: ref,
+        amount: 1,
+        reason: "r".repeat(1024),
+        idempotencyKey: ref,
+      }),
+    ).toEqual({ balance: 1 });
+  });
+
+  test.each(["subjectRef", "currency", "idempotencyKey"])("earn rejects a %s over 256 characters", async (field) => {
+    const t = setup();
+    await expect(
+      t.mutation(api.mutations.earn, { subjectRef: "u", currency: "coins", amount: 1, reason: "r", [field]: long }),
+    ).rejects.toMatchObject({ data: { code: "INVALID_ARGUMENT" } });
+  });
+
+  test("a reason over 1024 characters is rejected on spend and transfer", async () => {
+    const t = setup();
+    const reason = "r".repeat(1025);
+    await expect(
+      t.mutation(api.mutations.spend, { subjectRef: "u", currency: "coins", amount: 1, reason }),
+    ).rejects.toMatchObject({ data: { code: "INVALID_ARGUMENT" } });
+    await expect(
+      t.mutation(api.mutations.transfer, { fromRef: "a", toRef: long, currency: "coins", amount: 1, reason: "r" }),
+    ).rejects.toMatchObject({ data: { code: "INVALID_ARGUMENT" } });
+  });
 });
 
 async function expectCode(promise: Promise<unknown>, code: string) {
