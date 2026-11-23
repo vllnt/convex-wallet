@@ -109,6 +109,29 @@ describe("wallet component — retention and idempotency sweep", () => {
       expired: 0,
     });
   });
+
+  test("a full delete batch schedules one continuation that drains the backlog", async () => {
+    const t = setup();
+    for (let i = 0; i < 300; i++) {
+      await earn(t, `old-${i}`);
+    }
+    setClock(10_000);
+    expect(await prune(t, 5_000, 1)).toEqual({ deleted: 256, expired: 0 });
+    const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    expect(scheduled).toHaveLength(1);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await t.run((ctx) => ctx.db.query("ledger").collect())).toHaveLength(0);
+    const after = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    expect(after).toHaveLength(1);
+  });
+
+  test("a partial batch schedules no continuation", async () => {
+    const t = setup();
+    await earn(t, "old");
+    setClock(10_000);
+    expect(await prune(t, 5_000, 1)).toEqual({ deleted: 1, expired: 0 });
+    expect(await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect())).toHaveLength(0);
+  });
 });
 
 describe("wallet component — identifier length caps", () => {
