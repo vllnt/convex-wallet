@@ -8,6 +8,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Breaking:** reject identifiers longer than 256 characters and a `reason` longer than 1024
+  characters on `earn`, `spend` and `transfer` (`INVALID_ARGUMENT`), bounding stored row and
+  index-key size. Hosts with longer values must shorten or hash them before upgrading.
 - `earn` and the receiver leg of `transfer` could lower a balance: when a
   currency's `max` was below the stored balance (for example after the host
   lowered it), the credit clamped down to `max`, debiting the subject and
