@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api.js";
 import { internalMutation } from "./_generated/server.js";
 
 /** Hard cap on rows touched per sweep invocation — keeps each run bounded. */
@@ -51,6 +52,10 @@ export const pruneLedger = internalMutation({
           expired += 1;
         }
       }
+    }
+
+    if (oldest.length === PRUNE_BATCH) {
+      await ctx.scheduler.runAfter(0, internal.internal_mutations.pruneLedger, args);
     }
 
     return { deleted: oldest.length, expired };
