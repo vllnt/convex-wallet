@@ -9,10 +9,10 @@ import {
  * The wallet's own scheduled maintenance. Scheduling lives INSIDE the component
  * (never the host) and the swept mutation is idempotent (at-least-once safe).
  *
- * Runs the retention + idempotency-window sweep hourly with the default
- * windows; a host needing tighter/looser retention can additionally call
- * `pruneLedger` with its own values. The sweep is bounded per run, so a backlog
- * drains over successive ticks rather than in one unbounded transaction.
+ * Runs the retention + idempotency-window sweep hourly with the fixed default
+ * windows. `pruneLedger` is internal and not host-callable. Each run is
+ * bounded; a run that fills its batch schedules an immediate continuation, so
+ * a backlog drains in one sweep without one unbounded transaction.
  */
 const crons = cronJobs();
 

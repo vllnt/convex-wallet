@@ -8,8 +8,12 @@
   "files": [
     "dist",
     "src",
+    "docs/*.md",
+    "CHANGELOG.md",
+    "llms.txt",
     "!src/**/*.test.*",
-    "!src/**/*.spec.*"],
+    "!src/**/*.spec.*"
+  ],
   "exports": {
     "./package.json": "./package.json",
     ".": {
@@ -82,7 +86,7 @@
     "vite": "^8.3.8",
     "vitest": "^5.1.0"
   },
-  "homepage": "https://github.com/vllnt/convex-wallet#readme",
+  "homepage": "https://oss.vllnt.com/packages/convex-wallet",
   "bugs": {
     "url": "https://github.com/vllnt/convex-wallet/issues"
   },
@@ -108,7 +112,13 @@
   "keywords": [
     "convex",
     "convex-component",
-    "wallet"
+    "wallet",
+    "balance",
+    "ledger",
+    "virtual-currency",
+    "economy",
+    "credits",
+    "energy-regen"
   ],
   "pnpm": {
     "overrides": {

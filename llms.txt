@@ -14,21 +14,31 @@ and receiver caps can discard part of the transferred amount. Multiple named
 mounts isolate balances and maintenance. React >=18 is optional; Convex is required.
 The README follows the current npm `canary` surface; the default channel is stable.
 
+## For coding agents
+
+These docs are bundled in the npm package at `node_modules/@vllnt/convex-wallet/`
+(`docs/`, `README.md`, `CHANGELOG.md`, `llms.txt`, plus TypeScript source in `src/`).
+They match the installed version. Read them before writing code against this package.
+
 ## Docs
 
-- [README](README.md): Project overview, installation, usage examples, architecture
-- [API Reference](docs/API.md): Public class methods, return shapes, input validation
-- [Changelog](CHANGELOG.md): Version history and release notes
-- [Contributing](CONTRIBUTING.md): Development setup, validation commands, release workflow
+- [README](./README.md): Project overview, installation, usage examples, architecture
+- [API Reference](./docs/API.md): Entry points, public class methods, return shapes, input validation
+- [Changelog](./CHANGELOG.md): Version history and release notes
+- [Contributing](https://github.com/vllnt/convex-wallet/blob/main/CONTRIBUTING.md): Development setup, validation commands, release workflow (repository only)
 
 ## Examples
 
-- [Example component wrapper](example/convex/example.ts): Host-app wrapper functions
-- [Example tests](example/convex/example.test.ts): End-to-end usage coverage with `convex-test`
+- [Example component wrapper](https://github.com/vllnt/convex-wallet/blob/main/example/convex/example.ts): Host-app wrapper functions (repository only)
+- [Example tests](https://github.com/vllnt/convex-wallet/blob/main/example/convex/example.test.ts): End-to-end usage coverage with `convex-test` (repository only)
+
+## Ecosystem
+
+- [vllnt oss index](https://oss.vllnt.com/llms.txt): Index of related @vllnt packages
 
 ## Optional
 
-- [AGENTS](AGENTS.md): Canonical agent instructions for this repository
-- [Security Policy](SECURITY.md): Vulnerability reporting policy
-- [Code of Conduct](CODE_OF_CONDUCT.md): Community participation guidelines
-- [License](LICENSE): MIT license
+- [AGENTS](https://github.com/vllnt/convex-wallet/blob/main/AGENTS.md): Agent instructions for contributors to this repository (repository only)
+- [Security Policy](https://github.com/vllnt/convex-wallet/blob/main/SECURITY.md): Vulnerability reporting policy
+- [Code of Conduct](https://github.com/vllnt/convex-wallet/blob/main/CODE_OF_CONDUCT.md): Community participation guidelines
+- [License](./LICENSE): MIT license

@@ -9,14 +9,14 @@ export const DEFAULT_HISTORY_LIMIT = 50;
 
 /**
  * Default ledger retention: rows older than this are pruned by the internal
- * cron. 90 days. Override per mount via {@link WalletOptions.ledgerRetentionMs}.
+ * cron. 90 days. Fixed; not a client option.
  */
 export const DEFAULT_LEDGER_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 
 /**
  * Default idempotency window: a recorded `idempotencyKey` is honored (replays
  * are no-ops) for this long; afterwards the cron forgets it so the key can be
- * reused. 7 days. Override via {@link WalletOptions.idempotencyTtlMs}.
+ * reused. 7 days. Fixed; not a client option.
  */
 export const DEFAULT_IDEMPOTENCY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 

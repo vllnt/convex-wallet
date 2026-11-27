@@ -21,6 +21,13 @@ await wallet.spend(ctx, subjectRef, "coins", 5, "purchase"); // atomic, never ne
 const energy = await wallet.balance(ctx, subjectRef, "energy"); // regen-aware
 ```
 
+## For coding agents
+
+This package bundles its docs at `node_modules/@vllnt/convex-wallet/`:
+[`docs/API.md`](docs/API.md), this README, [`CHANGELOG.md`](CHANGELOG.md),
+[`llms.txt`](llms.txt) and the TypeScript source in `src/`. They match the
+installed version. Read them before writing code against this package.
+
 ## Features
 
 - **Atomic spend** — debits ride the Convex mutation transaction; never goes
@@ -204,6 +211,14 @@ const t = convexTest(schema, import.meta.glob("./**/*.ts"));
 register(t);
 ```
 
+## Related packages
+
+| Package                                                                          | Use it when                                                                                                             |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| [`@vllnt/convex-quota`](https://oss.vllnt.com/packages/convex-quota)             | The allowance resets on a schedule (calendar, rolling or epoch window) rather than being earned, spent and regenerated. |
+| [`@vllnt/convex-metering`](https://oss.vllnt.com/packages/convex-metering)       | You record usage to bill for per period, instead of debiting a prepaid balance.                                         |
+| [`@vllnt/convex-progression`](https://oss.vllnt.com/packages/convex-progression) | You track XP, levels or streaks that accumulate and are never spent.                                                    |
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -213,8 +228,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 Built by [bntvllnt](https://github.com/bntvllnt) ·
 [bntvllnt.com](https://bntvllnt.com) · [X @bntvllnt](https://x.com/bntvllnt)
 
-Part of the [@vllnt](https://github.com/vllnt) Convex component fleet —
-[vllnt.com](https://vllnt.com)
+Part of vllnt oss: https://oss.vllnt.com
 
 If this is useful, [sponsor the work](https://github.com/sponsors/bntvllnt).
 

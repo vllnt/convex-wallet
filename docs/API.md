@@ -2,6 +2,22 @@
 
 **Compatibility:** `convex@^1.45.0`
 
+## Entry points
+
+| Import                                      | Exports                                                                                                                            |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `@vllnt/convex-wallet`                      | `Wallet` class; types `WalletComponent`, `WalletOptions`, `RegenConfig`, `SpendResult`, `BalanceEntry`, `LedgerEntry`, `ErrorCode` |
+| `@vllnt/convex-wallet/convex.config`        | default component definition for `app.use(...)`                                                                                    |
+| `@vllnt/convex-wallet/react`                | `useBalance`, `useBalances` (optional; needs `react`)                                                                              |
+| `@vllnt/convex-wallet/test`                 | `register(t, name = "wallet")` to mount the component in `convex-test` (needs `convex-test` and Vite's `import.meta.glob`)         |
+| `@vllnt/convex-wallet/_generated/component` | `ComponentApi` type of the mounted component                                                                                       |
+
+`ErrorCode` is `"INSUFFICIENT" | "SELF_TRANSFER"`, the non-throwing failure tag
+on `SpendResult.code`. `CurrencyConfig` (`{ regen?, max? }`) is the shape of
+each `WalletOptions.currencies` entry; it is not exported by name.
+
+## Client
+
 Construct the client with the mounted component and optional per-currency
 config:
 
@@ -139,3 +155,14 @@ is bounded, so these windows are cleanup thresholds, not exact expiry deadlines.
 Do not rely on replay protection after a key is expired or its ledger row
 deleted. Earn/grant and spend share the same key namespace: use distinct keys
 for distinct operations. Transfers have no idempotency-key option.
+
+## React (`@vllnt/convex-wallet/react`)
+
+Thin wrappers over `useQuery` from `convex/react`. Pass the host's own public
+query references; the component never imports the host `api`.
+
+- `useBalance(balanceRef, { subjectRef, currency }) → number | undefined`
+- `useBalances(balancesRef, { subjectRef }) → BalanceEntry[] | undefined`
+
+`undefined` means the query is still loading. The host queries must accept
+exactly these arguments and authorize `subjectRef`.
