@@ -150,12 +150,9 @@ idempotent / at-least-once safe) inside the component — never the host:
   its batch schedules an immediate continuation, so a backlog drains in one sweep
   instead of one batch per hour;
 - clears the `idempotencyKey` of rows older than the idempotency window
-  (`DEFAULT_IDEMPOTENCY_TTL_MS`, 7 days). A key is never cleared before 7 days.
-  Each run scans at most 256 of the oldest rows aged 7 to 90 days across the
-  whole mount, including rows with no key or an already cleared key. A key is
-  cleared only once fewer than 256 rows in that range are older than its row, so
-  when that range holds many more than 256 rows, keys are typically cleared only
-  shortly before their rows are deleted at 90 days.
+  (`DEFAULT_IDEMPOTENCY_TTL_MS`, 7 days), in bounded batches. A key is never
+  cleared before 7 days, and it may stay recorded until its row is deleted at
+  90 days; do not rely on it being cleared in between.
 
 `pruneLedger` is an internal component mutation, not a host-callable API.
 Neither retention nor idempotency TTL is configurable through `WalletOptions`;
