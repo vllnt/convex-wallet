@@ -2,6 +2,22 @@
 
 **Compatibility:** `convex@^1.45.0`
 
+## Entry points
+
+| Import                                      | Exports                                                                                                                            |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `@vllnt/convex-wallet`                      | `Wallet` class; types `WalletComponent`, `WalletOptions`, `RegenConfig`, `SpendResult`, `BalanceEntry`, `LedgerEntry`, `ErrorCode` |
+| `@vllnt/convex-wallet/convex.config`        | default component definition for `app.use(...)`                                                                                    |
+| `@vllnt/convex-wallet/react`                | `useBalance`, `useBalances` (optional; needs `react`)                                                                              |
+| `@vllnt/convex-wallet/test`                 | `register(t, name = "wallet")` to mount the component in `convex-test` (needs `convex-test` and Vite's `import.meta.glob`)         |
+| `@vllnt/convex-wallet/_generated/component` | `ComponentApi` type of the mounted component                                                                                       |
+
+`ErrorCode` is `"INSUFFICIENT" | "SELF_TRANSFER"`, the non-throwing failure tag
+on `SpendResult.code`. `CurrencyConfig` (`{ regen?, max? }`) is the shape of
+each `WalletOptions.currencies` entry; it is not exported by name.
+
+## Client
+
 Construct the client with the mounted component and optional per-currency
 config:
 
@@ -40,22 +56,26 @@ integer minor units (for example cents) for money-like currencies.
 | `IDEMPOTENCY_KEY_REUSED`               | a key recorded by a credit is reused on a debit, or the reverse                               |
 | `INVALID_LIMIT`                        | `history` limit is not an integer from 1 through 1000                                         |
 
-(`INVALID_AMOUNT` and `INVALID_REGEN` are thrown as plain `Error`s whose message
-is the code.) A credit never lowers a balance: if the stored balance is already
-above `max`, the credit is a no-op row with `delta` 0.
+Only `earn` / `grant` / `spend` / `transfer` check for empty strings; queries
+do not. (`INVALID_AMOUNT` and `INVALID_REGEN` are thrown as plain `Error`s whose
+message is the code.) A credit never lowers a balance: if the stored balance is
+already above `max`, the credit is a no-op row with `delta` 0.
 
 Mutations are serializable Convex transactions, so concurrent retries of the
 same `idempotencyKey` apply once. The ledger reconciles with the balance only
 for non-regen currencies while rows are retained: regen ticks are not ledgered,
 and the sweep deletes rows after the retention window.
 
-Any call passing a `regen` config with a non-finite or non-positive
-`intervalMs`, `amount`, or `cap` **throws `INVALID_REGEN`** — this prevents
-`0 * Infinity = NaN` from corrupting the `lastRegenAt` field.
+A `regen` config with a non-finite or non-positive `intervalMs`, `amount`, or
+`cap` **throws `INVALID_REGEN`** when regen is applied, which prevents
+`0 * Infinity = NaN` from corrupting the `lastRegenAt` field. Regen is applied
+only to an existing balance row after time has passed since `lastRegenAt`, so an
+invalid config is not rejected on the first credit or on a read of a missing
+balance. Validate your currency config yourself.
 
 The `delta` field in each ledger row is the **actual balance change**, not the
-requested amount. When a credit is clamped by `max` or regen state, `delta`
-equals the real increase only.
+requested amount. When a credit is clamped by `max`, `delta` equals the real
+increase only.
 
 ## Mutations
 
@@ -130,7 +150,9 @@ idempotent / at-least-once safe) inside the component — never the host:
   its batch schedules an immediate continuation, so a backlog drains in one sweep
   instead of one batch per hour;
 - clears the `idempotencyKey` of rows older than the idempotency window
-  (`DEFAULT_IDEMPOTENCY_TTL_MS`, 7 days) so a key may be reused afterward.
+  (`DEFAULT_IDEMPOTENCY_TTL_MS`, 7 days), in bounded batches. A key is never
+  cleared before 7 days, and it may stay recorded until its row is deleted at
+  90 days; do not rely on it being cleared in between.
 
 `pruneLedger` is an internal component mutation, not a host-callable API.
 Neither retention nor idempotency TTL is configurable through `WalletOptions`;
@@ -139,3 +161,14 @@ is bounded, so these windows are cleanup thresholds, not exact expiry deadlines.
 Do not rely on replay protection after a key is expired or its ledger row
 deleted. Earn/grant and spend share the same key namespace: use distinct keys
 for distinct operations. Transfers have no idempotency-key option.
+
+## React (`@vllnt/convex-wallet/react`)
+
+Thin wrappers over `useQuery` from `convex/react`. Pass the host's own public
+query references; the component never imports the host `api`.
+
+- `useBalance(balanceRef, { subjectRef, currency }) → number | undefined`
+- `useBalances(balancesRef, { subjectRef }) → BalanceEntry[] | undefined`
+
+`undefined` means the query is still loading. The host queries must accept
+exactly these arguments and authorize `subjectRef`.

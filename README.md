@@ -21,6 +21,13 @@ await wallet.spend(ctx, subjectRef, "coins", 5, "purchase"); // atomic, never ne
 const energy = await wallet.balance(ctx, subjectRef, "energy"); // regen-aware
 ```
 
+## For coding agents
+
+This package bundles its docs at `node_modules/@vllnt/convex-wallet/`:
+[`docs/API.md`](docs/API.md), this README, [`CHANGELOG.md`](CHANGELOG.md),
+[`llms.txt`](llms.txt) and the TypeScript source in `src/`. They match the
+installed version. Read them before writing code against this package.
+
 ## Features
 
 - **Atomic spend** — debits ride the Convex mutation transaction; never goes
@@ -46,8 +53,8 @@ pnpm add @vllnt/convex-wallet
 ```
 
 Node.js >=18; required peer: `convex@^1.45.0`. React >=18 is optional. The
-default npm channel is stable; use `@vllnt/convex-wallet@canary` for the current
-prerelease surface documented here.
+default npm channel is stable; `@vllnt/convex-wallet@canary` carries unreleased
+changes from `main`. The docs in each package describe that package's version.
 
 ## Usage
 
@@ -172,8 +179,8 @@ const all = useBalances(api.wallet.balances, { subjectRef: userId });
   Stripe purchase before calling `grant`.
 - Tables are sandboxed; spend and transfer are atomic, so balances never go
   negative and grants never double-credit.
-- Amounts and regen configs are validated, and time is server-sourced — a forged
-  or replayed clock can't drive extra regen.
+- Amounts are validated, regen configs are validated when regen is applied, and
+  time is server-sourced — a forged or replayed clock can't drive extra regen.
 
 See [docs/API.md](docs/API.md).
 
@@ -204,17 +211,25 @@ const t = convexTest(schema, import.meta.glob("./**/*.ts"));
 register(t);
 ```
 
+## Related packages
+
+| Package                                                                          | Use it when                                                                                                             |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| [`@vllnt/convex-quota`](https://oss.vllnt.com/packages/convex-quota)             | The allowance resets on a schedule (calendar, rolling or epoch window) rather than being earned, spent and regenerated. |
+| [`@vllnt/convex-metering`](https://oss.vllnt.com/packages/convex-metering)       | You record usage to bill for per period, instead of debiting a prepaid balance.                                         |
+| [`@vllnt/convex-progression`](https://oss.vllnt.com/packages/convex-progression) | You track XP, levels or streaks that accumulate and are never spent.                                                    |
+
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See
+[CONTRIBUTING.md](https://github.com/vllnt/convex-wallet/blob/main/CONTRIBUTING.md).
 
 ## Author
 
 Built by [bntvllnt](https://github.com/bntvllnt) ·
 [bntvllnt.com](https://bntvllnt.com) · [X @bntvllnt](https://x.com/bntvllnt)
 
-Part of the [@vllnt](https://github.com/vllnt) Convex component fleet —
-[vllnt.com](https://vllnt.com)
+Part of vllnt oss: https://oss.vllnt.com
 
 If this is useful, [sponsor the work](https://github.com/sponsors/bntvllnt).
 

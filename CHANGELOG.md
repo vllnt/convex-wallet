@@ -27,9 +27,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The `/test` entry type-checks for consumers using `moduleResolution`
   `nodenext` (explicit `.js` relative imports, `vite/client` types).
 
+### Added
+
+- The npm package now ships its docs for coding agents: `docs/*.md`, `llms.txt`
+  and `CHANGELOG.md` alongside `README.md`, so
+  `node_modules/@vllnt/convex-wallet/` holds docs that match the installed
+  version. `llms.txt` links to them with relative paths. A test fails CI if a
+  required file is missing from the tarball or a contributor-only file is added.
+- `docs/API.md` lists every entry point (`./react`, `./test`, `./convex.config`,
+  `./_generated/component`) and the exported types.
+
 ### Changed
 
 - Test files are no longer included in the published package.
+- `homepage` points to https://oss.vllnt.com/packages/convex-wallet; more
+  `keywords`.
+- Canary releases publish on every push to `main` that touches the package or
+  its shipped docs, without a repository-variable gate. They still use the
+  `canary` dist-tag only.
 - Tooling: pnpm 10 with a release-age gate, tag-only stable releases with npm
   provenance, pinned CI actions, patched transitive dependencies.
 
