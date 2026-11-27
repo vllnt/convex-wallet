@@ -58,8 +58,8 @@ integer minor units (for example cents) for money-like currencies.
 
 Only `earn` / `grant` / `spend` / `transfer` check for empty strings; queries
 do not. (`INVALID_AMOUNT` and `INVALID_REGEN` are thrown as plain `Error`s whose
-message is the code.) A credit never lowers a balance: if the stored balance is already
-above `max`, the credit is a no-op row with `delta` 0.
+message is the code.) A credit never lowers a balance: if the stored balance is
+already above `max`, the credit is a no-op row with `delta` 0.
 
 Mutations are serializable Convex transactions, so concurrent retries of the
 same `idempotencyKey` apply once. The ledger reconciles with the balance only
@@ -150,9 +150,11 @@ idempotent / at-least-once safe) inside the component — never the host:
   its batch schedules an immediate continuation, so a backlog drains in one sweep
   instead of one batch per hour;
 - clears the `idempotencyKey` of rows older than the idempotency window
-  (`DEFAULT_IDEMPOTENCY_TTL_MS`, 7 days), at most one bounded batch per run. A
-  key is never cleared before 7 days, but under a backlog it can stay recorded
-  until its row is deleted at 90 days.
+  (`DEFAULT_IDEMPOTENCY_TTL_MS`, 7 days). A key is never cleared before 7 days.
+  Each run scans at most 256 of the oldest rows aged 7 to 90 days across the
+  whole mount, including rows with no key or an already cleared key, so once
+  more than 256 rows are in that range, keys are typically cleared only shortly
+  before their rows are deleted at 90 days.
 
 `pruneLedger` is an internal component mutation, not a host-callable API.
 Neither retention nor idempotency TTL is configurable through `WalletOptions`;
