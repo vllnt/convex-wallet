@@ -10,6 +10,7 @@ import {
   assertValidMax,
   fail,
   IDEMPOTENCY_KEY_REUSED,
+  INVALID_ARGUMENT,
 } from "../shared.js";
 import { maxArg, regenArg, spendResult } from "./validators.js";
 
@@ -56,18 +57,28 @@ function clampToMax(
   return clamped;
 }
 
+const MAX_REF_LENGTH = 256;
+const MAX_REASON_LENGTH = 1024;
+
+function assertBounded(name: string, value: string, max: number): void {
+  assertNonEmpty(name, value);
+  if (value.length > max) {
+    fail(INVALID_ARGUMENT, `${name} must be at most ${String(max)} characters`);
+  }
+}
+
 /** Validate the string identifiers shared by every value-moving mutation. */
 function assertIdentifiers(
   args: { currency: string; reason: string; idempotencyKey?: string },
   subjects: Record<string, string>,
 ): void {
   for (const [name, value] of Object.entries(subjects)) {
-    assertNonEmpty(name, value);
+    assertBounded(name, value, MAX_REF_LENGTH);
   }
-  assertNonEmpty("currency", args.currency);
-  assertNonEmpty("reason", args.reason);
+  assertBounded("currency", args.currency, MAX_REF_LENGTH);
+  assertBounded("reason", args.reason, MAX_REASON_LENGTH);
   if (args.idempotencyKey !== undefined) {
-    assertNonEmpty("idempotencyKey", args.idempotencyKey);
+    assertBounded("idempotencyKey", args.idempotencyKey, MAX_REF_LENGTH);
   }
 }
 

@@ -134,6 +134,69 @@ describe("wallet component — retention and idempotency sweep", () => {
   });
 });
 
+describe("wallet component — identifier length caps", () => {
+  const ref = "x".repeat(256);
+  const long = "x".repeat(257);
+  const longReason = "r".repeat(1025);
+
+  async function snapshot(t: ReturnType<typeof setup>) {
+    return t.run(async (ctx) => ({
+      balances: await ctx.db.query("balances").collect(),
+      ledger: await ctx.db.query("ledger").collect(),
+    }));
+  }
+
+  async function seeded() {
+    const t = setup();
+    await t.mutation(api.mutations.earn, { subjectRef: "a", currency: "coins", amount: 5, reason: "seed" });
+    return t;
+  }
+
+  test("256-character identifiers and a 1024-character reason are accepted on every write", async () => {
+    const t = setup();
+    const reason = "r".repeat(1024);
+    await t.mutation(api.mutations.earn, {
+      subjectRef: ref,
+      currency: ref,
+      amount: 3,
+      reason,
+      idempotencyKey: ref,
+    });
+    expect(
+      await t.mutation(api.mutations.spend, { subjectRef: ref, currency: ref, amount: 1, reason, idempotencyKey: `${ref.slice(1)}s` }),
+    ).toMatchObject({ ok: true });
+    expect(
+      await t.mutation(api.mutations.transfer, { fromRef: ref, toRef: `${ref.slice(1)}t`, currency: ref, amount: 1, reason }),
+    ).toMatchObject({ ok: true });
+  });
+
+  test.each([
+    ["earn", { subjectRef: long }],
+    ["earn", { currency: long }],
+    ["earn", { idempotencyKey: long }],
+    ["earn", { reason: longReason }],
+    ["spend", { subjectRef: long }],
+    ["spend", { currency: long }],
+    ["spend", { idempotencyKey: long }],
+    ["spend", { reason: longReason }],
+    ["transfer", { fromRef: long }],
+    ["transfer", { toRef: long }],
+    ["transfer", { currency: long }],
+    ["transfer", { reason: longReason }],
+  ] as const)("%s rejects %o and writes nothing", async (fn, override) => {
+    const t = await seeded();
+    const before = await snapshot(t);
+    const call =
+      fn === "earn"
+        ? t.mutation(api.mutations.earn, { subjectRef: "a", currency: "coins", amount: 1, reason: "r", ...override })
+        : fn === "spend"
+          ? t.mutation(api.mutations.spend, { subjectRef: "a", currency: "coins", amount: 1, reason: "r", ...override })
+          : t.mutation(api.mutations.transfer, { fromRef: "a", toRef: "b", currency: "coins", amount: 1, reason: "r", ...override });
+    await expect(call).rejects.toMatchObject({ data: { code: "INVALID_ARGUMENT" } });
+    expect(await snapshot(t)).toEqual(before);
+  });
+});
+
 async function expectCode(promise: Promise<unknown>, code: string) {
   await expect(promise).rejects.toMatchObject({ data: { code } });
 }
