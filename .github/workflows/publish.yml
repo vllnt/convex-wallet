@@ -1,7 +1,7 @@
 name: Publish
 
-# Canary: a push to main touching the package (when vars.CANARY_ENABLED is 'true'),
-# or a manual run on main. Stable (@latest): only a pushed vX.Y.Z tag whose commit is
+# Canary (@canary dist-tag only): a push to main touching the package or its shipped
+# docs, or a manual run on main. Stable (@latest): only a pushed vX.Y.Z tag whose commit is
 # on main and matches package.json and a CHANGELOG.md entry. Both use npm trusted
 # publishing (OIDC) with provenance; this workflow holds no npm token.
 
@@ -12,6 +12,10 @@ on:
     # Not evaluated for tag pushes.
     paths:
       - "src/**"
+      - "docs/**"
+      - "README.md"
+      - "CHANGELOG.md"
+      - "llms.txt"
       - "package.json"
       - "pnpm-lock.yaml"
       - ".github/workflows/publish.yml"
@@ -47,7 +51,7 @@ jobs:
   canary:
     name: Publish Canary
     needs: quality
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.CANARY_ENABLED == 'true')
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
