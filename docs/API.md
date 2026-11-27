@@ -56,8 +56,9 @@ integer minor units (for example cents) for money-like currencies.
 | `IDEMPOTENCY_KEY_REUSED`               | a key recorded by a credit is reused on a debit, or the reverse                               |
 | `INVALID_LIMIT`                        | `history` limit is not an integer from 1 through 1000                                         |
 
-(`INVALID_AMOUNT` and `INVALID_REGEN` are thrown as plain `Error`s whose message
-is the code.) A credit never lowers a balance: if the stored balance is already
+Only `earn` / `grant` / `spend` / `transfer` check for empty strings; queries
+do not. (`INVALID_AMOUNT` and `INVALID_REGEN` are thrown as plain `Error`s whose
+message is the code.) A credit never lowers a balance: if the stored balance is already
 above `max`, the credit is a no-op row with `delta` 0.
 
 Mutations are serializable Convex transactions, so concurrent retries of the
@@ -65,13 +66,16 @@ same `idempotencyKey` apply once. The ledger reconciles with the balance only
 for non-regen currencies while rows are retained: regen ticks are not ledgered,
 and the sweep deletes rows after the retention window.
 
-Any call passing a `regen` config with a non-finite or non-positive
-`intervalMs`, `amount`, or `cap` **throws `INVALID_REGEN`** — this prevents
-`0 * Infinity = NaN` from corrupting the `lastRegenAt` field.
+A `regen` config with a non-finite or non-positive `intervalMs`, `amount`, or
+`cap` **throws `INVALID_REGEN`** when regen is applied, which prevents
+`0 * Infinity = NaN` from corrupting the `lastRegenAt` field. Regen is applied
+only to an existing balance row after time has passed since `lastRegenAt`, so an
+invalid config is not rejected on the first credit or on a read of a missing
+balance. Validate your currency config yourself.
 
 The `delta` field in each ledger row is the **actual balance change**, not the
-requested amount. When a credit is clamped by `max` or regen state, `delta`
-equals the real increase only.
+requested amount. When a credit is clamped by `max`, `delta` equals the real
+increase only.
 
 ## Mutations
 
@@ -146,7 +150,9 @@ idempotent / at-least-once safe) inside the component — never the host:
   its batch schedules an immediate continuation, so a backlog drains in one sweep
   instead of one batch per hour;
 - clears the `idempotencyKey` of rows older than the idempotency window
-  (`DEFAULT_IDEMPOTENCY_TTL_MS`, 7 days) so a key may be reused afterward.
+  (`DEFAULT_IDEMPOTENCY_TTL_MS`, 7 days), at most one bounded batch per run. A
+  key is never cleared before 7 days, but under a backlog it can stay recorded
+  until its row is deleted at 90 days.
 
 `pruneLedger` is an internal component mutation, not a host-callable API.
 Neither retention nor idempotency TTL is configurable through `WalletOptions`;

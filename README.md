@@ -53,8 +53,8 @@ pnpm add @vllnt/convex-wallet
 ```
 
 Node.js >=18; required peer: `convex@^1.45.0`. React >=18 is optional. The
-default npm channel is stable; use `@vllnt/convex-wallet@canary` for the current
-prerelease surface documented here.
+default npm channel is stable; `@vllnt/convex-wallet@canary` carries unreleased
+changes from `main`. The docs in each package describe that package's version.
 
 ## Usage
 
@@ -179,8 +179,8 @@ const all = useBalances(api.wallet.balances, { subjectRef: userId });
   Stripe purchase before calling `grant`.
 - Tables are sandboxed; spend and transfer are atomic, so balances never go
   negative and grants never double-credit.
-- Amounts and regen configs are validated, and time is server-sourced — a forged
-  or replayed clock can't drive extra regen.
+- Amounts are validated, regen configs are validated when regen is applied, and
+  time is server-sourced — a forged or replayed clock can't drive extra regen.
 
 See [docs/API.md](docs/API.md).
 
@@ -221,7 +221,8 @@ register(t);
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See
+[CONTRIBUTING.md](https://github.com/vllnt/convex-wallet/blob/main/CONTRIBUTING.md).
 
 ## Author
 

@@ -15,8 +15,9 @@ export const DEFAULT_LEDGER_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 
 /**
  * Default idempotency window: a recorded `idempotencyKey` is honored (replays
- * are no-ops) for this long; afterwards the cron forgets it so the key can be
- * reused. 7 days. Fixed; not a client option.
+ * are no-ops) for at least this long; afterwards the bounded cron may clear it,
+ * at the latest when the row is deleted at retention. 7 days. Fixed; not a
+ * client option.
  */
 export const DEFAULT_IDEMPOTENCY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
