@@ -52,7 +52,7 @@ installed version. Read them before writing code against this package.
 pnpm add @vllnt/convex-wallet
 ```
 
-Node.js >=18; required peer: `convex@^1.45.0`. React >=18 is optional. The
+Node.js >=20; required peer: `convex@^1.45.0`. React >=18 is optional. The
 default npm channel is stable; `@vllnt/convex-wallet@canary` carries unreleased
 changes from `main`. The docs in each package describe that package's version.
 
@@ -115,9 +115,10 @@ optional `regen: { amount, intervalMs, cap }` and `max`. There are no client
 retention or idempotency-TTL options. The internal hourly sweep uses 90-day
 ledger retention and a 7-day key-expiry threshold: each key is cleared by the
 first sweep after it turns 7 days old, however large the backlog, so expiry lags
-the threshold by up to about one hour. Replay protection ends when the key or
-ledger row is removed. Earn/grant and spend share keys per subject/currency;
-transfer has no replay key.
+the threshold by up to about one hour (plus drain time on the first sweep after
+upgrading). Replay protection ends when the key or ledger row is removed.
+Earn/grant and spend share keys per subject/currency; transfer has no replay
+key.
 
 Regen is projected when a query executes, not pushed by a clock-driven
 subscription. Transfers clamp the receiver's credit to `max`, so a capped

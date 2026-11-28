@@ -188,6 +188,8 @@ describe("wallet component — retention and idempotency sweep", () => {
       amount: 1,
       reason: "gift",
     });
+    const rows = await t.run((ctx) => ctx.db.query("ledger").collect());
+    expect(rows.every((row) => row.noKey === true)).toBe(true);
     setClock(10 * DAY);
     expect(await prune(t, RETENTION_MS, IDEMPOTENCY_TTL_MS)).toEqual({ deleted: 0, expired: 0 });
     expect(await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect())).toHaveLength(0);

@@ -32,11 +32,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (or the reverse) for the same subject and currency was treated as a replay,
   silently skipping the second operation. It now throws
   `IDEMPOTENCY_KEY_REUSED`; 0.1.0 returned success.
-- Credits that would push a balance or `lifetimeEarned` past 2^53 - 1 (where
-  numbers lose precision) throw `BALANCE_OVERFLOW`; amounts above 2^53 - 1 throw
-  `INVALID_AMOUNT`.
-- A `NaN` or negative `max` (which could store a `NaN` balance) throws
-  `INVALID_MAX`.
+- **Breaking:** credits that would push a balance or `lifetimeEarned` past
+  2^53 - 1 (where numbers lose precision) throw `BALANCE_OVERFLOW`; amounts
+  above 2^53 - 1 throw `INVALID_AMOUNT`. 0.1.0 accepted them and stored an
+  imprecise balance.
+- **Breaking:** a `NaN` or negative `max` throws `INVALID_MAX`. 0.1.0 accepted
+  it and could store a `NaN` balance.
 - **Breaking:** empty `subjectRef`, `fromRef`, `toRef`, `currency`, `reason` or
   `idempotencyKey` on `earn`, `grant`, `spend` and `transfer` throw
   `INVALID_ARGUMENT`. 0.1.0 accepted them, so callers passing an empty string
@@ -60,7 +61,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and a `by_no_key_created` index used by the idempotency-key sweep. New rows
   written without a key get `noKey: true`; rows written before this release have
   no `noKey`, so the sweep visits each of them once and marks it, clearing any
-  key it still holds. Existing deployments keep working without a backfill.
+  key it still holds. Existing deployments keep working without a backfill. On
+  upgrade, the first sweep clears keys aged 7 to 90 days that were still being
+  honoured, and the first deploy builds the new index, which takes longer on a
+  large ledger.
+- **Breaking:** `engines.node` is `>=20` (was `>=18`). The lowest supported
+  `convex` peer (1.45) already requires Node 20, so Node 18 never worked.
+- Removed `llms-full.txt` from the repository; `llms.txt` is the single index.
+  It was never part of the npm package.
 - `typecheck:ci` (run by CI and publish) also type-checks the component, the
   `/test` entry, the example host app and every test file. The example app's
   relative imports now carry explicit `.js` extensions.

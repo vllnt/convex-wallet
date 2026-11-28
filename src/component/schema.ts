@@ -24,7 +24,7 @@ export default defineSchema({
     createdAt: v.number(),
     // `true` once the row holds no idempotency key: written without one, or
     // cleared by the sweep. Absent while it may hold one, including every row
-    // written before 0.1.1, so the sweep visits each such row exactly once.
+    // written before 0.2.0, so the sweep visits each such row at most once.
     noKey: v.optional(v.literal(true)),
   })
     .index("by_subject_currency", ["subjectRef", "currency", "createdAt"])

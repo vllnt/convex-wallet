@@ -103,7 +103,7 @@
     "url": "https://github.com/vllnt/convex-wallet"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "publishConfig": {
     "access": "public"
