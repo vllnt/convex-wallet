@@ -4,13 +4,13 @@
 
 Install `@vllnt/convex-wallet` (unreleased builds from `main` use the `canary`
 dist-tag). Peer dependency `convex@^1.45.0`; optional `react >=18` for the
-`./react` hooks; Node.js `>=20`. Mount it with `app.use(wallet)` from
+`./react` hooks; Node.js `>=20` (22+ with convex 1.49 and newer). Mount it with `app.use(wallet)` from
 `@vllnt/convex-wallet/convex.config` and call it through
 `new Wallet(components.wallet, { currencies, defaultHistoryLimit })` from host
 mutations and queries. Methods: `earn`, `grant`, `spend`, `transfer` (mutations)
 and `balance`, `balances`, `history` (queries). Two sandboxed tables: `balances`
 (one row per subject and currency) and `ledger` (one signed `delta` row per
-change). `spend` and `transfer` never overdraw and return
+earn, spend or transfer leg; regen is not ledgered). `spend` and `transfer` never overdraw and return
 `{ ok: false, code: "INSUFFICIENT" | "SELF_TRANSFER" }` instead of throwing.
 Currency rules live in the client: `regen: { amount, intervalMs, cap }` refills
 lazily from the server clock, `max` clamps credits. `grant` (and `earn` or

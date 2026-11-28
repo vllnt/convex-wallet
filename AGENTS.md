@@ -55,8 +55,9 @@ src/
 ## Key design decisions
 
 - **Consumable balances + ledger.** Two tables: `balances` (one row per `(subjectRef, currency)`)
-  and `ledger` (one signed-`delta` row per change). `balance = sum(ledger.delta)` is always
-  derivable; the stored balance is the running total, not recomputed each read.
+  and `ledger` (one signed-`delta` row per earn, spend or transfer leg). The stored balance is the
+  running total, not recomputed each read. `sum(ledger.delta)` equals it only for currencies
+  without regen and only while no rows have been pruned (90-day retention).
 - **Atomic spend, never negative.** `spend` and `transfer` debit inside a single Convex mutation
   transaction. An insufficient balance returns `{ ok: false, code: "INSUFFICIENT" }` — no partial
   debit, no negative balance.
@@ -66,7 +67,7 @@ src/
   non-positive `intervalMs`/`amount`/`cap` (`INVALID_REGEN`), and advances `lastRegenAt` by
   exactly the ticks consumed — the pointer never exceeds `now`.
 - **Ledger `delta` = actual credited amount.** When a credit is clamped by `max`, `delta` records
-  the real increase only. `balance = sum(ledger.delta)` always holds.
+  the real increase only. Regen ticks are not ledgered.
 - **Idempotent spend via `idempotencyKey`.** A replay of a recorded `(subjectRef, currency,
   idempotencyKey)` returns the current balance without a second debit or ledger row — safe for
   host retries.

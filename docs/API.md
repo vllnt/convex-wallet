@@ -1,6 +1,7 @@
 # API Reference — @vllnt/convex-wallet
 
-**Compatibility:** `convex@^1.45.0`, optional `react >=18`, Node.js `>=20`
+**Compatibility:** `convex@^1.45.0`, optional `react >=18`, Node.js `>=20` (22+
+with convex 1.49 and newer)
 
 ## Entry points
 
@@ -81,9 +82,10 @@ await wallet.earn(ctx, subjectRef, "coins", 10, "daily bonus", {
 grant(ctx, subjectRef: string, currency: string, amount: number, reason: string, idempotencyKey: string): Promise<{ balance: number }>
 ```
 
-`earn` with a required `idempotencyKey`: credits once per key per subject and
-currency. Call it after the host has verified a purchase, keyed on the receipt
-id. Same errors as `earn`.
+`earn` with a required `idempotencyKey`: a replay of the key for the same
+subject and currency credits nothing while the key is recorded (at least 7 days;
+see Maintenance). Call it after the host has verified a purchase, keyed on the
+receipt id. Same errors as `earn`.
 
 ```ts
 const { balance } = await wallet.grant(
@@ -147,8 +149,8 @@ balance(ctx, subjectRef: string, currency: string): Promise<number>
 
 The balance projected forward to the server clock under the currency's `regen`.
 `0` when the subject has no balance row. The projection is not written; the
-stored balance catches up on the next mutation. Throws `INVALID_REGEN` for an
-invalid regen rule.
+stored balance catches up on the next mutation. Throws `INVALID_REGEN` when an
+invalid regen rule applies to an existing balance row.
 
 ```ts
 const energy = await wallet.balance(ctx, subjectRef, "energy");
@@ -199,9 +201,10 @@ interface WalletOptions {
 }
 ```
 
-`max` is a hard ceiling on the stored balance; credits clamp to it. It must not
-be `NaN` or negative (`INVALID_MAX`). There are no retention or key-expiry
-options.
+`max` caps credits: `earn`, `grant` and the receiving side of `transfer` never
+raise the balance above `max`. It does not cap regen (keep `regen.cap` at or
+below `max`) and never lowers a balance already above it. It must not be `NaN`
+or negative (`INVALID_MAX`). There are no retention or key-expiry options.
 
 ### `RegenConfig`
 
@@ -244,7 +247,7 @@ interface LedgerEntry {
   currency: string;
   delta: number; // positive on earn / receive, negative on spend / send
   reason: string;
-  idempotencyKey?: string; // cleared 7 days after the row was written
+  idempotencyKey?: string; // cleared by the first hourly sweep at least 7 days after the row was written
   createdAt: number; // epoch ms
 }
 ```
@@ -279,6 +282,7 @@ useBalances(balancesRef: FunctionReference<"query", "public", { subjectRef: stri
 `undefined` while the query loads.
 
 ```tsx
+// api.balances.all: your public query with args { subjectRef } that returns wallet.balances(ctx, subjectRef)
 const all = useBalances(api.balances.all, { subjectRef });
 ```
 
@@ -304,7 +308,7 @@ export default app;
 ### `register`
 
 ```ts
-register(t: TestConvex<SchemaDefinition<GenericSchema, boolean>>, name?: string): void
+register<TSchema extends GenericSchema>(t: TestConvex<SchemaDefinition<TSchema, boolean>>, name = "wallet"): void
 ```
 
 Mounts the component in a `convex-test` instance built from any host schema,

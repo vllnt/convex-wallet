@@ -114,7 +114,7 @@ Full reference: [docs/API.md](docs/API.md).
 | --------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------- |
 | [`Wallet`](docs/API.md#wallet)                                                          | `@vllnt/convex-wallet`                      | Host client: `new Wallet(components.wallet, options?)`    |
 | [`earn(ctx, subjectRef, currency, amount, reason, opts?)`](docs/API.md#earn)            | `Wallet` method, mutation                   | Credit, clamped to `max`; returns `{ balance }`           |
-| [`grant(ctx, subjectRef, currency, amount, reason, idempotencyKey)`](docs/API.md#grant) | `Wallet` method, mutation                   | Credit once per key; returns `{ balance }`                |
+| [`grant(ctx, subjectRef, currency, amount, reason, idempotencyKey)`](docs/API.md#grant) | `Wallet` method, mutation                   | Credit once per key (7-day window); returns `{ balance }` |
 | [`spend(ctx, subjectRef, currency, amount, reason, opts?)`](docs/API.md#spend)          | `Wallet` method, mutation                   | Debit, never negative; returns `{ ok, balance, code? }`   |
 | [`transfer(ctx, fromRef, toRef, currency, amount, reason)`](docs/API.md#transfer)       | `Wallet` method, mutation                   | Move between subjects; returns `{ ok, balance, code? }`   |
 | [`balance(ctx, subjectRef, currency)`](docs/API.md#balance)                             | `Wallet` method, query                      | Regen-aware balance; `0` when missing                     |
@@ -373,10 +373,13 @@ Convex argument validation before the component runs.
   `transfer` has no idempotency key; a retried transfer moves funds twice.
 - A replayed key returns success with the current balance; it does not tell you
   it was a replay.
-- `spend` with a key that ends `INSUFFICIENT` records nothing, so a retry with
-  the same key can succeed later.
-- A credit at or above `max` changes nothing and still writes a ledger row with
-  `delta` 0. Lowering `max` never reduces a stored balance.
+- `spend` with a key that ends `INSUFFICIENT` writes no ledger row and does not
+  record the key, so a retry with the same key can succeed later.
+- A credit to a balance already at or above `max` adds nothing and still writes
+  a ledger row with `delta` 0 (accrued regen is still saved). Lowering `max`
+  never reduces a stored balance.
+- `max` does not cap regen: a `regen.cap` above `max` lets the balance
+  regenerate past `max`.
 - A transfer to a receiver near `max` credits only up to `max`; the sender is
   still debited the full `amount`.
 - A subject without a balance row reads `0`, even for a regen currency, and is
@@ -402,9 +405,12 @@ Convex argument validation before the component runs.
   convex-test 0.0.73, and type-checks and runs the packed package against convex
   1.51.0.
 - Optional peer `react >=18`, needed only for `@vllnt/convex-wallet/react`.
-- Node.js `>=20`. ES modules only.
+- Node.js `>=20` with convex 1.45–1.48; Node.js 22 or later with convex 1.49
+  and newer, which require it. ES modules only.
 - `@vllnt/convex-wallet/test` is TypeScript source and needs `convex-test`,
-  `vitest` and `vite` (for `import.meta.glob`).
+  `vitest`, `vite` (for `import.meta.glob`) and `@edge-runtime/vm` (for the
+  Testing config): `pnpm add -D convex-test vitest vite @edge-runtime/vm`.
+  convex-test 0.0.73 needs convex 1.46 or later.
 - Unreleased builds from `main` are published under the `canary` dist-tag.
 
 ## Testing

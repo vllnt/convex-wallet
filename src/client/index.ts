@@ -171,8 +171,10 @@ export class Wallet {
   }
 
   /**
-   * Idempotent grant — credit only once per `idempotencyKey`. Use after the
-   * host has verified an IAP / Stripe purchase. Returns the new balance.
+   * Idempotent grant — a replay of `idempotencyKey` for the same subject and
+   * currency credits nothing while the key is recorded (at least 7 days). Use
+   * after the host has verified an IAP / Stripe purchase. Returns the new
+   * balance.
    * Same errors as {@link Wallet.earn}.
    */
   grant(
@@ -242,7 +244,7 @@ export class Wallet {
   /**
    * Regen-aware single-currency balance for `subjectRef`. Missing → 0. The
    * projected regen is not written until the next mutation. Throws
-   * `INVALID_REGEN` for an invalid regen rule.
+   * `INVALID_REGEN` when an invalid regen rule applies to an existing row.
    */
   balance(ctx: RunQueryCtx, subjectRef: string, currency: string): Promise<number> {
     return ctx.runQuery(this.component.queries.balance, {
