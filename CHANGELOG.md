@@ -93,6 +93,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `canary` dist-tag only.
 - Tooling: pnpm 10 with a release-age gate, tag-only stable releases with npm
   provenance, pinned CI actions, patched transitive dependencies.
+- Release safety: the publish workflow runs `pnpm test:package` before every
+  canary and stable publish. The 7-day release-age gate (`@vllnt/*` exempt)
+  moved from the `package.json` `pnpm` field, which pnpm 10 ignores, to
+  `pnpm-workspace.yaml`; Renovate also waits 7 days. The package-contents test
+  suite also covers packed `.test.mts` and `.test.cts` files.
 - The component is now built and tested against `convex` 1.51 and `convex-test`
   0.0.73 (was 1.50 and 0.0.71). The `convex` peer range stays `^1.45.0`, and the
   published JavaScript and type declarations are unchanged.
