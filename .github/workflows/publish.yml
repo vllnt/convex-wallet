@@ -48,6 +48,7 @@ jobs:
       - run: pnpm test:coverage
       - run: bash scripts/test-check-package-contents.sh
       - run: pnpm build
+      - run: pnpm test:package
 
   canary:
     name: Publish Canary

@@ -87,8 +87,8 @@ commit_tree
 run "packed test file is denied" 1
 grep -q 'DENY  src/index.test.ts' <<< "$LAST_OUTPUT" || { echo "FAIL test path not denied" >&2; failures=$((failures + 1)); }
 
-# ESM/CJS TypeScript spec files packed despite files field
-for ext in spec.mts spec.cts; do
+# ESM/CJS TypeScript test and spec files packed despite files field
+for ext in test.mts test.cts spec.mts spec.cts; do
   rm -f "$REPO/src/"index.*
   printf 'export {}\n' > "$REPO/src/index.ts"
   printf 'test()\n' > "$REPO/src/index.$ext"
