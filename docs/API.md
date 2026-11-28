@@ -4,13 +4,13 @@
 
 ## Entry points
 
-| Import                                      | Exports                                                                                                                            |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `@vllnt/convex-wallet`                      | `Wallet` class; types `WalletComponent`, `WalletOptions`, `RegenConfig`, `SpendResult`, `BalanceEntry`, `LedgerEntry`, `ErrorCode` |
-| `@vllnt/convex-wallet/convex.config`        | default component definition for `app.use(...)`                                                                                    |
-| `@vllnt/convex-wallet/react`                | `useBalance`, `useBalances` (optional; needs `react`)                                                                              |
-| `@vllnt/convex-wallet/test`                 | `register(t, name = "wallet")` to mount the component in `convex-test` (needs `convex-test` and Vite's `import.meta.glob`)         |
-| `@vllnt/convex-wallet/_generated/component` | `ComponentApi` type of the mounted component                                                                                       |
+| Import                                      | Exports                                                                                                                                                               |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@vllnt/convex-wallet`                      | `Wallet` class; types `WalletComponent`, `WalletOptions`, `RegenConfig`, `SpendResult`, `BalanceEntry`, `LedgerEntry`, `ErrorCode`                                    |
+| `@vllnt/convex-wallet/convex.config`        | default component definition for `app.use(...)`                                                                                                                       |
+| `@vllnt/convex-wallet/react`                | `useBalance`, `useBalances` (optional; needs `react`)                                                                                                                 |
+| `@vllnt/convex-wallet/test`                 | `register(t, name = "wallet")` to mount the component in a host app's `convex-test` instance, for any host schema (needs `convex-test` and Vite's `import.meta.glob`) |
+| `@vllnt/convex-wallet/_generated/component` | `ComponentApi` type of the mounted component                                                                                                                          |
 
 `ErrorCode` is `"INSUFFICIENT" | "SELF_TRANSFER"`, the non-throwing failure tag
 on `SpendResult.code`. `CurrencyConfig` (`{ regen?, max? }`) is the shape of

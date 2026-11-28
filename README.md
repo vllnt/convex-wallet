@@ -198,8 +198,9 @@ delivery.
 ### Testing your app
 
 `@vllnt/convex-wallet/test` exports `register(t, name = "wallet")` to mount the
-component in a `convex-test` instance. It needs `convex-test` and `vitest` (with
-Vite's `import.meta.glob`) in the consuming app:
+component in a `convex-test` instance built from your app's own schema (with or
+without tables of its own). It needs `convex-test` and `vitest` (with Vite's
+`import.meta.glob`) in the consuming app:
 
 ```ts
 /// <reference types="vite/client" />
