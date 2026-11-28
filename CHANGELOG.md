@@ -60,13 +60,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Schema (additive, no migration): `ledger` rows gain an optional `noKey` field
   and a `by_no_key_created` index used by the idempotency-key sweep. New rows
   written without a key get `noKey: true`; rows written before this release have
-  no `noKey`, so the sweep visits each of them once and marks it, clearing any
-  key it still holds. Existing deployments keep working without a backfill. On
-  upgrade, the first sweep clears keys aged 7 to 90 days that were still being
-  honoured, and the first deploy builds the new index, which takes longer on a
-  large ledger.
+  no `noKey`, so the sweep visits each of them at most once and marks it,
+  clearing any key it still holds. Existing deployments keep working without a
+  backfill. On upgrade, the first sweep clears keys aged 7 to 90 days that were
+  still being honoured, and the first deploy builds the new index, which takes
+  longer on a large ledger.
 - **Breaking:** `engines.node` is `>=20` (was `>=18`). The lowest supported
-  `convex` peer (1.45) already requires Node 20, so Node 18 never worked.
+  `convex` peer (1.45) already requires Node 20, so Node 18 was never supported.
 - Removed `llms-full.txt` from the repository; `llms.txt` is the single index.
   It was never part of the npm package.
 - `typecheck:ci` (run by CI and publish) also type-checks the component, the
@@ -78,6 +78,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Test files are no longer included in the published package.
 - `homepage` points to https://oss.vllnt.com/packages/convex-wallet; more
   `keywords`.
+- Docs for coding agents: the README follows the shared @vllnt section layout
+  (when to use, quick start, API table, common tasks, errors and fixes, limits
+  and gotchas, compatibility, testing, security, links); `docs/API.md` has one
+  heading per public export; `llms.txt` adds when to use, a link to the errors
+  table and the ecosystem links; every public export has a TSDoc summary. The
+  `package.json` description and keywords describe the package in search terms.
+  `pnpm test:package` (run in CI) packs the package, checks the docs contract in
+  `scripts/check-documentation.mjs`, and type-checks and runs every README
+  example against the installed tarball. Comments only in `src/`; runtime
+  behaviour is unchanged.
 - Canary releases publish on every push to `main` that touches the package or
   its shipped docs, without a repository-variable gate. They still use the
   `canary` dist-tag only.

@@ -57,8 +57,11 @@ export type SubjectRef = string;
  * `intervalMs`, never exceeding `cap`. Coin/gem-style currencies omit it.
  */
 export interface RegenConfig {
+  /** Units gained per whole `intervalMs`. Must be finite and > 0. */
   amount: number;
+  /** Milliseconds per regen tick. Must be finite and > 0. */
   intervalMs: number;
+  /** Regen stops at this balance. Must be finite and > 0. */
   cap: number;
 }
 

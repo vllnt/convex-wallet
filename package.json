@@ -1,7 +1,7 @@
 {
   "name": "@vllnt/convex-wallet",
   "version": "0.2.0",
-  "description": "Consumable balances and economy ledger with atomic spend and lazy regen, as a Convex component",
+  "description": "TypeScript Convex component for virtual currency wallets: coin, credit and energy balances with atomic spend, transfers, regen over time and a ledger.",
   "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@10.34.9",
@@ -53,6 +53,7 @@
     "test:watch": "vitest --typecheck --clearScreen false",
     "test:coverage": "vitest run --coverage --coverage.reporter=text",
     "generate:llms": "node scripts/generate-llms.mjs",
+    "test:package": "node scripts/test-package.mjs",
     "preversion": "pnpm install --frozen-lockfile && pnpm build && pnpm test:coverage && pnpm typecheck && pnpm generate:llms",
     "check:agents": "node -e \"const f=require('node:fs');if(!f.existsSync('AGENTS.md')||f.existsSync('CLAUDE.md')||f.existsSync('.claude'))process.exit(1)\"",
     "codegen": "pnpm convex codegen --component-dir ./src/component"
@@ -112,13 +113,15 @@
   "keywords": [
     "convex",
     "convex-component",
+    "typescript",
     "wallet",
+    "virtual-currency",
     "balance",
     "ledger",
-    "virtual-currency",
-    "economy",
     "credits",
-    "energy-regen"
+    "energy-regen",
+    "game-economy",
+    "idempotency"
   ],
   "pnpm": {
     "overrides": {

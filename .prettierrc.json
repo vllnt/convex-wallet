@@ -1,4 +1,10 @@
 {
   "trailingComma": "all",
-  "proseWrap": "always"
+  "proseWrap": "always",
+  "overrides": [
+    {
+      "files": "README.md",
+      "options": { "proseWrap": "preserve" }
+    }
+  ]
 }

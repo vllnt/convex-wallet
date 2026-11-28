@@ -1,175 +1,358 @@
 # API Reference — @vllnt/convex-wallet
 
-**Compatibility:** `convex@^1.45.0`
+**Compatibility:** `convex@^1.45.0`, optional `react >=18`, Node.js `>=20` (22+
+with convex 1.49 and newer)
 
 ## Entry points
 
-| Import                                      | Exports                                                                                                                                                               |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@vllnt/convex-wallet`                      | `Wallet` class; types `WalletComponent`, `WalletOptions`, `RegenConfig`, `SpendResult`, `BalanceEntry`, `LedgerEntry`, `ErrorCode`                                    |
-| `@vllnt/convex-wallet/convex.config`        | default component definition for `app.use(...)`                                                                                                                       |
-| `@vllnt/convex-wallet/react`                | `useBalance`, `useBalances` (optional; needs `react`)                                                                                                                 |
-| `@vllnt/convex-wallet/test`                 | `register(t, name = "wallet")` to mount the component in a host app's `convex-test` instance, for any host schema (needs `convex-test` and Vite's `import.meta.glob`) |
-| `@vllnt/convex-wallet/_generated/component` | `ComponentApi` type of the mounted component                                                                                                                          |
+| Import                                                 | Exports                                                                                                                            |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `@vllnt/convex-wallet`                                 | `Wallet` class; types `WalletComponent`, `WalletOptions`, `RegenConfig`, `SpendResult`, `ErrorCode`, `BalanceEntry`, `LedgerEntry` |
+| `@vllnt/convex-wallet/react`                           | `useBalance`, `useBalances` (needs `react`)                                                                                        |
+| `@vllnt/convex-wallet/convex.config` (or `.js`)        | default component config for `app.use(...)`                                                                                        |
+| `@vllnt/convex-wallet/test`                            | `register(t, name = "wallet")` for `convex-test` (TypeScript source; needs Vite `import.meta.glob`)                                |
+| `@vllnt/convex-wallet/_generated/component` (or `.js`) | type `ComponentApi`                                                                                                                |
 
-`ErrorCode` is `"INSUFFICIENT" | "SELF_TRANSFER"`, the non-throwing failure tag
-on `SpendResult.code`. `CurrencyConfig` (`{ regen?, max? }`) is the shape of
-each `WalletOptions.currencies` entry; it is not exported by name.
+`subjectRef`, `fromRef`, `toRef` and `currency` are opaque host strings; the
+component never inspects them. Every method takes the host `ctx` first: a
+mutation context for `earn`, `grant`, `spend` and `transfer`, and a query or
+mutation context for `balance`, `balances` and `history`. Every handler reads
+the server clock (`Date.now()`) itself; no method takes a time argument.
 
 ## Client
 
-Construct the client with the mounted component and optional per-currency
-config:
+### `Wallet`
+
+```ts
+new Wallet(component: WalletComponent, options?: WalletOptions)
+```
+
+`component` is the mounted component, `components.wallet` (or the name passed to
+`app.use`). `options.currencies` maps a currency string to its rules (`regen`,
+`max`); a currency without an entry is static and uncapped.
+`options.defaultHistoryLimit` defaults to `50`. The constructor does not
+validate options: a bad `max` throws `INVALID_MAX` on the next credit, a bad
+`regen` throws `INVALID_REGEN` once regen applies, and a bad
+`defaultHistoryLimit` throws `INVALID_LIMIT` on `history`.
 
 ```ts
 import { Wallet } from "@vllnt/convex-wallet";
-const wallet = new Wallet(components.wallet, {
+import { components } from "./_generated/api";
+
+export const wallet = new Wallet(components.wallet, {
   currencies: {
-    // energy regenerates 1 unit every 10s, capped at 100
-    energy: { regen: { amount: 1, intervalMs: 10_000, cap: 100 } },
-    // gems are static but capped at a hard ceiling of 9999
+    energy: { regen: { amount: 1, intervalMs: 60_000, cap: 5 } },
     gems: { max: 9999 },
-    // coins omits both → static, uncapped
   },
-  defaultHistoryLimit: 50, // page size for history() when omitted
+  defaultHistoryLimit: 50,
 });
 ```
 
-All methods take the host `ctx` (a query or mutation context) as the first
-argument. `subjectRef` and `currency` are opaque host strings — the component
-never inspects them. The client injects each currency's `regen` rule and `max`
-ceiling automatically; **time is server-sourced** — every handler reads
-`Date.now()` itself, so the host never passes (and can never forge) the clock.
+### `earn`
 
-Every value-moving call (`earn` / `grant` / `spend` / `transfer`) **throws
-`INVALID_AMOUNT`** when `amount` is not a finite number strictly greater than 0
-and at most `Number.MAX_SAFE_INTEGER` (rejects `0`, negatives, `NaN`,
-`Infinity`, and values past 2^53 - 1). A negative `spend` can never mint funds.
-Fractional amounts are accepted, but floating-point sums are not exact: use
-integer minor units (for example cents) for money-like currencies.
+```ts
+earn(ctx, subjectRef: string, currency: string, amount: number, reason: string, opts?: { idempotencyKey?: string }): Promise<{ balance: number }>
+```
 
-| Error code (`ConvexError` `data.code`) | Thrown when                                                                                   |
-| -------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `INVALID_ARGUMENT`                     | `subjectRef`, `fromRef`, `toRef`, `currency`, `reason` or `idempotencyKey` is an empty string |
-| `INVALID_MAX`                          | a currency `max` is `NaN` or negative                                                         |
-| `BALANCE_OVERFLOW`                     | a credit would push a balance or `lifetimeEarned` past 2^53 - 1 (nothing is written)          |
-| `IDEMPOTENCY_KEY_REUSED`               | a key recorded by a credit is reused on a debit, or the reverse                               |
-| `INVALID_LIMIT`                        | `history` limit is not an integer from 1 through 1000                                         |
+Credits `amount` and returns the new balance. Creates the balance row when the
+subject did not hold the currency. Regen that accrued is applied first. The
+credit is clamped to the currency's `max`; a credit never lowers a balance, so
+at or above `max` it writes a ledger row with `delta` 0. The ledger `delta` is
+the actual increase.
 
-Only `earn` / `grant` / `spend` / `transfer` check for empty strings; queries
-do not. (`INVALID_AMOUNT` and `INVALID_REGEN` are thrown as plain `Error`s whose
-message is the code.) A credit never lowers a balance: if the stored balance is
-already above `max`, the credit is a no-op row with `delta` 0.
+With `opts.idempotencyKey`, a second call with the same key for the same
+`(subjectRef, currency)` returns the current balance and credits nothing. The
+same key for another subject or currency is independent. A key already used by
+`spend` for that subject and currency throws `IDEMPOTENCY_KEY_REUSED`.
 
-Mutations are serializable Convex transactions, so concurrent retries of the
-same `idempotencyKey` apply once. The ledger reconciles with the balance only
-for non-regen currencies while rows are retained: regen ticks are not ledgered,
-and the sweep deletes rows after the retention window.
+Throws `INVALID_AMOUNT` (not a finite number in `(0, 2^53 - 1]`),
+`INVALID_ARGUMENT` (empty `subjectRef`, `currency`, `reason` or
+`idempotencyKey`), `INVALID_MAX`, `BALANCE_OVERFLOW` (balance or lifetime earned
+past 2^53 - 1), `IDEMPOTENCY_KEY_REUSED` or `INVALID_REGEN`.
 
-A `regen` config with a non-finite or non-positive `intervalMs`, `amount`, or
-`cap` **throws `INVALID_REGEN`** when regen is applied, which prevents
-`0 * Infinity = NaN` from corrupting the `lastRegenAt` field. Regen is applied
-only to an existing balance row after time has passed since `lastRegenAt`, so an
-invalid config is not rejected on the first credit or on a read of a missing
-balance. Validate your currency config yourself.
+```ts
+await wallet.earn(ctx, subjectRef, "coins", 10, "daily bonus", {
+  idempotencyKey: `daily:${day}`,
+});
+```
 
-The `delta` field in each ledger row is the **actual balance change**, not the
-requested amount. When a credit is clamped by `max`, `delta` equals the real
-increase only.
+### `grant`
 
-## Mutations
+```ts
+grant(ctx, subjectRef: string, currency: string, amount: number, reason: string, idempotencyKey: string): Promise<{ balance: number }>
+```
 
-### `earn(ctx, subjectRef, currency, amount, reason, opts?) → { balance }`
+`earn` with a required `idempotencyKey`: a replay of the key for the same
+subject and currency credits nothing while the key is recorded (at least 7 days;
+see Maintenance). Call it after the host has verified a purchase, keyed on the
+receipt id. Same errors as `earn`.
 
-Credit `amount` of `currency` to `subjectRef`; returns the new balance, clamped
-to the currency's `max` if one is configured. `opts.idempotencyKey` makes it
-replay-safe — a second call with the same key **for the same
-`(subjectRef, currency)`** is a no-op that returns the current balance without
-double-crediting. The same key used for a different subject or currency is
-independent. Creates the balance row if the subject did not hold the currency.
+```ts
+const { balance } = await wallet.grant(
+  ctx,
+  subjectRef,
+  "coins",
+  500,
+  "iap",
+  receiptId,
+);
+```
 
-### `grant(ctx, subjectRef, currency, amount, reason, idempotencyKey) → { balance }`
+### `spend`
 
-`earn` with a **required** `idempotencyKey` — credit exactly once per key
-(scoped per subject + currency). Use after the host has verified an IAP / Stripe
-purchase, keyed on the receipt id.
+```ts
+spend(ctx, subjectRef: string, currency: string, amount: number, reason: string, opts?: { idempotencyKey?: string }): Promise<SpendResult>
+```
 
-### `spend(ctx, subjectRef, currency, amount, reason, opts?) → { ok, balance, code? }`
+Debits `amount` after applying accrued regen. Returns `{ ok: true, balance }`
+with the new balance, or `{ ok: false, balance, code: "INSUFFICIENT" }` when the
+balance is short or the subject has no balance row; a short spend still writes
+the regen that accrued and writes no ledger row. A balance never goes negative.
 
-Debit `amount` of `currency`. Never goes negative — when the (regen-aware)
-balance is short, returns `{ ok: false, balance, code: "INSUFFICIENT" }` while
-still persisting any regen that accrued. On success returns
-`{ ok: true, balance }` with the new balance. `code` is a stable,
-machine-readable tag; `reason` is the free-text ledger note.
+With `opts.idempotencyKey`, a recorded key for the same `(subjectRef, currency)`
+returns `{ ok: true, balance }` with the current balance and debits nothing. A
+key already used by `earn` or `grant` throws `IDEMPOTENCY_KEY_REUSED`.
 
-`opts.idempotencyKey` makes spend replay-safe: if this
-`(subjectRef, currency, idempotencyKey)` tuple was already recorded, the call is
-a no-op — it returns the current (regen-aware) balance without a second debit or
-ledger row. Use this to prevent double-charges on host retries.
+Throws `INVALID_AMOUNT`, `INVALID_ARGUMENT`, `IDEMPOTENCY_KEY_REUSED` or
+`INVALID_REGEN`.
 
-### `transfer(ctx, fromRef, toRef, currency, amount, reason) → { ok, balance, code? }`
+```ts
+const result = await wallet.spend(ctx, subjectRef, "energy", 1, "round");
+if (!result.ok) return result.code; // "INSUFFICIENT"
+```
 
-Move `amount` of `currency` from `fromRef` to `toRef` in one transaction. Debits
-the sender (same insufficiency guard as `spend`); on success credits the
-receiver (creating their balance if needed, clamped to `max`) and ledgers both
-legs. `balance` is the sender's new balance. `fromRef === toRef` is rejected
-with `{ ok: false, balance, code: "SELF_TRANSFER" }` and never
-debits-then-credits a single row.
+### `transfer`
 
-## Queries
+```ts
+transfer(ctx, fromRef: string, toRef: string, currency: string, amount: number, reason: string): Promise<SpendResult>
+```
 
-### `balance(ctx, subjectRef, currency) → number`
+Moves `amount` from `fromRef` to `toRef` in one transaction and writes one
+ledger row per side. `balance` in the result is the sender's balance. Returns
+`{ ok: false, balance, code: "SELF_TRANSFER" }` when `fromRef === toRef`, and
+`code: "INSUFFICIENT"` when the sender is short. The receiver's credit is
+clamped to `max`, so the receiver can gain less than the sender lost; the
+receiver's ledger `delta` is the actual increase. There is no idempotency key.
 
-The current balance of `currency` for `subjectRef`, **regen-aware** (projected
-forward to the server clock under the per-currency `regen`). Missing → `0`.
-Queries cannot write, so the projected regen is reflected in the result but not
-persisted until the next mutation. A backwards/stale clock never grants extra.
+Throws `INVALID_AMOUNT`, `INVALID_ARGUMENT` (empty `fromRef`, `toRef`,
+`currency` or `reason`), `INVALID_MAX`, `BALANCE_OVERFLOW` or `INVALID_REGEN`.
 
-### `balances(ctx, subjectRef) → { currency, amount }[]`
+```ts
+const result = await wallet.transfer(ctx, fromRef, toRef, "coins", 25, "gift");
+```
 
-Every currency balance held by `subjectRef`, **regen-aware** — the client passes
-its per-currency `regen` map so each row is projected exactly as `balance()`
-would, with no stale divergence. A currency without a configured `regen` is
-static.
+### `balance`
 
-### `history(ctx, subjectRef, currency, limit?) → LedgerEntry[]`
+```ts
+balance(ctx, subjectRef: string, currency: string): Promise<number>
+```
 
-Newest-first ledger entries for one currency, capped at `limit` (default
-`defaultHistoryLimit`). `limit` must be an integer from 1 through 1000; invalid
-values throw `INVALID_LIMIT`. Each entry is
-`{ currency, delta, reason, idempotencyKey?, createdAt }`, where `delta` is
-positive on earn / receive and negative on spend / send.
+The balance projected forward to the server clock under the currency's `regen`.
+`0` when the subject has no balance row. The projection is not written; the
+stored balance catches up on the next mutation. Throws `INVALID_REGEN` when an
+invalid regen rule applies to an existing balance row.
 
-## Maintenance
+```ts
+const energy = await wallet.balance(ctx, subjectRef, "energy");
+```
 
-The component schedules its own **hourly** internal sweep (`pruneLedger`,
-idempotent / at-least-once safe) inside the component — never the host:
+### `balances`
 
-- deletes `ledger` rows older than the retention window
-  (`DEFAULT_LEDGER_RETENTION_MS`, 90 days), bounded per run; a run that fills
-  its batch schedules an immediate continuation, so a backlog drains in one
-  sweep instead of one batch per hour;
-- clears the `idempotencyKey` of rows older than the idempotency window
-  (`DEFAULT_IDEMPOTENCY_TTL_MS`, 7 days), in bounded batches that read only rows
-  that may still hold a key, with the same immediate continuation. A key is
-  never cleared before 7 days, and it is cleared by the first sweep after that,
-  however large the backlog.
+```ts
+balances(ctx, subjectRef: string): Promise<BalanceEntry[]>
+```
 
-`pruneLedger` is an internal component mutation, not a host-callable API.
-Neither retention nor idempotency TTL is configurable through `WalletOptions`;
-the supported options are `currencies` and `defaultHistoryLimit` only. The sweep
-is bounded, so these windows are cleanup thresholds, not exact expiry deadlines.
-Do not rely on replay protection after a key is expired or its ledger row
-deleted. Earn/grant and spend share the same key namespace: use distinct keys
-for distinct operations. Transfers have no idempotency-key option.
+Every currency the subject has a balance row for, each projected like `balance`.
+Currencies never credited are not listed.
+
+```ts
+const all = await wallet.balances(ctx, subjectRef); // [{ currency: "coins", amount: 30 }]
+```
+
+### `history`
+
+```ts
+history(ctx, subjectRef: string, currency: string, limit?: number): Promise<LedgerEntry[]>
+```
+
+Newest-first ledger rows for one currency, at most `limit` (default
+`defaultHistoryLimit`, `50`). Throws `INVALID_LIMIT` unless `limit` is an
+integer from 1 through 1000. There is no cursor. Rows older than 90 days are
+deleted by the internal sweep. Regen ticks are not ledgered.
+
+```ts
+const recent = await wallet.history(ctx, subjectRef, "coins", 20);
+```
+
+## Types
+
+### `WalletComponent`
+
+The type of `components.wallet`: the component's mutations (`earn`, `spend`,
+`transfer`) and queries (`balance`, `balances`, `history`) as internal function
+references. The generated `ComponentApi` is assignable to it.
+
+### `WalletOptions`
+
+```ts
+interface WalletOptions {
+  currencies?: Record<string, { regen?: RegenConfig; max?: number }>;
+  defaultHistoryLimit?: number; // default 50, integer 1..1000
+}
+```
+
+`max` caps credits: `earn`, `grant` and the receiving side of `transfer` never
+raise the balance above `max`. It does not cap regen (keep `regen.cap` at or
+below `max`) and never lowers a balance already above it. It must not be `NaN`
+or negative (`INVALID_MAX`). There are no retention or key-expiry options.
+
+### `RegenConfig`
+
+```ts
+interface RegenConfig {
+  amount: number; // units per tick, finite and > 0
+  intervalMs: number; // tick length, finite and > 0
+  cap: number; // regen stops at this balance, finite and > 0
+}
+```
+
+Every whole `intervalMs` since the balance last regenerated (or was created)
+adds `amount`, up to `cap`. Regen never lowers a balance that is already above
+`cap`, and partial intervals carry over. An invalid rule throws `INVALID_REGEN`
+when regen applies to an existing balance row.
+
+### `SpendResult`
+
+```ts
+interface SpendResult {
+  ok: boolean;
+  balance: number;
+  code?: ErrorCode; // present only when ok is false
+}
+```
+
+### `ErrorCode`
+
+`"INSUFFICIENT" | "SELF_TRANSFER"`: the failure tag on `SpendResult.code`. These
+are returned, never thrown.
+
+### `BalanceEntry`
+
+`{ currency: string; amount: number }`, one element of `balances`.
+
+### `LedgerEntry`
+
+```ts
+interface LedgerEntry {
+  currency: string;
+  delta: number; // positive on earn / receive, negative on spend / send
+  reason: string;
+  idempotencyKey?: string; // cleared by the first hourly sweep at least 7 days after the row was written
+  createdAt: number; // epoch ms
+}
+```
 
 ## React (`@vllnt/convex-wallet/react`)
 
-Thin wrappers over `useQuery` from `convex/react`. Pass the host's own public
-query references; the component never imports the host `api`.
+Thin wrappers over `useQuery` from `convex/react`. Pass your own public query
+references; the component never imports your `api`. The queries must accept
+exactly the arguments below and must authorize `subjectRef`.
 
-- `useBalance(balanceRef, { subjectRef, currency }) → number | undefined`
-- `useBalances(balancesRef, { subjectRef }) → BalanceEntry[] | undefined`
+### `useBalance`
 
-`undefined` means the query is still loading. The host queries must accept
-exactly these arguments and authorize `subjectRef`.
+```ts
+useBalance(balanceRef: FunctionReference<"query", "public", { subjectRef: string; currency: string }, number>, args: { subjectRef: string; currency: string }): number | undefined
+```
+
+`undefined` while the query loads.
+
+```tsx
+const coins = useBalance(api.balances.balance, {
+  subjectRef,
+  currency: "coins",
+});
+```
+
+### `useBalances`
+
+```ts
+useBalances(balancesRef: FunctionReference<"query", "public", { subjectRef: string }, BalanceEntry[]>, args: { subjectRef: string }): BalanceEntry[] | undefined
+```
+
+`undefined` while the query loads.
+
+```tsx
+// api.balances.all: your public query with args { subjectRef } that returns wallet.balances(ctx, subjectRef)
+const all = useBalances(api.balances.all, { subjectRef });
+```
+
+## Component config
+
+### `convex.config`
+
+`import wallet from "@vllnt/convex-wallet/convex.config"` is the component
+definition (named `wallet`). Mount it with `app.use(wallet)`, or
+`app.use(wallet, { name })` for several isolated mounts.
+
+```ts
+import wallet from "@vllnt/convex-wallet/convex.config";
+import { defineApp } from "convex/server";
+
+const app = defineApp();
+app.use(wallet);
+export default app;
+```
+
+## Testing (`@vllnt/convex-wallet/test`)
+
+### `register`
+
+```ts
+register<TSchema extends GenericSchema>(t: TestConvex<SchemaDefinition<TSchema, boolean>>, name = "wallet"): void
+```
+
+Mounts the component in a `convex-test` instance built from any host schema,
+under `name` (default `"wallet"`, the name `app.use(wallet)` uses). It is
+TypeScript source that uses Vite's `import.meta.glob`, so run it under Vitest.
+
+```ts
+const t = convexTest(schema, import.meta.glob("./**/*.ts"));
+register(t);
+```
+
+## Generated types
+
+### `ComponentApi`
+
+`import type { ComponentApi } from "@vllnt/convex-wallet/_generated/component"`
+is the generated type of the mounted component (`components.wallet`). Use it to
+type a parameter that receives the component.
+
+## Errors
+
+| Code                     | Returned or thrown                        | When                                                                                           |
+| ------------------------ | ----------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `INSUFFICIENT`           | returned in `SpendResult.code`            | `spend` / `transfer` sender balance (after regen) below `amount`, or no balance row            |
+| `SELF_TRANSFER`          | returned in `SpendResult.code`            | `transfer` with `fromRef === toRef`                                                            |
+| `INVALID_AMOUNT`         | thrown `Error`, message contains the code | `amount` is not a finite number in `(0, 2^53 - 1]`                                             |
+| `INVALID_REGEN`          | thrown `Error`, message contains the code | a regen `amount`, `intervalMs` or `cap` is not finite or not above 0, when regen applies       |
+| `INVALID_ARGUMENT`       | thrown `ConvexError`, `data.code`         | an identifier, `reason` or `idempotencyKey` is `""` on `earn` / `grant` / `spend` / `transfer` |
+| `INVALID_MAX`            | thrown `ConvexError`, `data.code`         | a currency `max` is `NaN` or negative                                                          |
+| `INVALID_LIMIT`          | thrown `ConvexError`, `data.code`         | `history` limit is not an integer from 1 through 1000                                          |
+| `BALANCE_OVERFLOW`       | thrown `ConvexError`, `data.code`         | a credit would push a balance or lifetime earned past 2^53 - 1                                 |
+| `IDEMPOTENCY_KEY_REUSED` | thrown `ConvexError`, `data.code`         | a key recorded by a credit is reused on a debit, or the reverse                                |
+
+## Maintenance
+
+The component schedules its own hourly internal sweep (`pruneLedger`); the host
+cannot call it or configure it.
+
+- It deletes ledger rows older than 90 days.
+- It clears the `idempotencyKey` of rows older than 7 days. A key is never
+  cleared before 7 days, and it is cleared by the first sweep after that,
+  however large the backlog.
+- Each run is bounded; a run that fills its batch schedules an immediate
+  continuation, so a backlog drains in one sweep.
+
+Replay protection ends when a key is cleared or its row is deleted. `earn` /
+`grant` and `spend` share one key namespace per subject and currency.
