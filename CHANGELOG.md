@@ -8,8 +8,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- The ledger retention sweep schedules an immediate continuation when a run fills its batch, so a
-  backlog larger than one batch drains in one sweep instead of draining at most one batch per hour.
+- The ledger retention sweep schedules an immediate continuation when a run
+  fills its batch, so a backlog larger than one batch drains in one sweep
+  instead of draining at most one batch per hour.
 - `earn` and the receiver leg of `transfer` could lower a balance: when a
   currency's `max` was below the stored balance (for example after the host
   lowered it), the credit clamped down to `max`, debiting the subject and
@@ -47,6 +48,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `canary` dist-tag only.
 - Tooling: pnpm 10 with a release-age gate, tag-only stable releases with npm
   provenance, pinned CI actions, patched transitive dependencies.
+- The component is now built and tested against `convex` 1.51 and `convex-test`
+  0.0.73 (was 1.50 and 0.0.71). The `convex` peer range stays `^1.45.0`, and the
+  published JavaScript and type declarations are unchanged.
+- Development tooling: eslint 10, vitest 5.1.1, jsdom 31, pnpm 10.34.9 and
+  `@vllnt/typescript` 3 (with its new strict flags except
+  `exactOptionalPropertyTypes`, which stays off for now).
 
 ## [0.1.0] - 2026-09-01
 
