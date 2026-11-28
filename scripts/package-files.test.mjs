@@ -66,7 +66,7 @@ describe("npm tarball", () => {
     expect(links.length).toBeGreaterThan(0);
     for (const href of links) {
       expect(href).toMatch(/^\.\//);
-      expect(files).toContain(href.slice(2));
+      expect(files).toContain(href.slice(2).split("#")[0]);
     }
   });
 });

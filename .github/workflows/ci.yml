@@ -79,3 +79,5 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # Docs contract and README examples against the packed package.
+      - run: pnpm test:package

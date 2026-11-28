@@ -10,7 +10,8 @@ Convex agent skills for common tasks can be installed by running `npx convex ai-
 
 # @vllnt/convex-wallet
 
-Consumable balances and economy ledger with atomic spend and lazy regen, as a Convex component.
+TypeScript Convex component for virtual currency wallets: coin, credit and energy balances with
+atomic spend, transfers, regen over time and a ledger.
 Follows the vllnt Component Standard (see the `oss-packages` hub
 `AGENTS.md`).
 
@@ -84,14 +85,18 @@ src/
 
 | Changed | Update in same commit |
 |---------|-----------------------|
-| Public API (client methods, args, returns, error codes) | `README.md` API Reference, `docs/API.md`, `llms.txt` |
-| Config points / options | `README.md` Usage + API Reference, `docs/API.md` |
-| Schema / tables / indexes | `README.md` Architecture |
-| `convex` peer version | `llms.txt` context line, `README.md` Installation, `docs/API.md` Compatibility |
-| New file / capability | `README.md`, `llms.txt` |
+| Public API (client methods, args, returns, error codes) | `README.md` API + Errors and fixes, `docs/API.md`, `llms.txt`, TSDoc |
+| Config points / options | `README.md` API + Limits and gotchas, `docs/API.md` |
+| Schema / tables / indexes | `llms.txt` summary |
+| `convex` peer version | `llms.txt` summary, `README.md` Compatibility, `docs/API.md` Compatibility, `scripts/test-package.mjs` |
+| New file / capability | `README.md`, `llms.txt`, `docs/API.md` |
 | Version | `CHANGELOG.md` entry |
 
 Run `pnpm generate:llms` after editing `llms.txt` to validate the index.
+README, `llms.txt` and `docs/` follow the shared docs contract in
+`scripts/check-documentation.mjs`, run by `pnpm test:package` after
+`pnpm build`. Every README `ts`/`tsx` example type-checks against the packed
+package; the Testing example also runs under Vitest.
 Grep the old value before committing — zero stale hits required.
 
 ## Generated code

@@ -9,7 +9,9 @@ export type { ErrorCode, RegenConfig };
  * machine-readable failure tag, present only when `ok` is false.
  */
 export interface SpendResult {
+  /** `true` when the debit (or transfer) was applied. */
   ok: boolean;
+  /** The subject's (sender's) balance after the call. */
   balance: number;
   /** Stable failure tag when `ok` is false: `INSUFFICIENT` | `SELF_TRANSFER`. */
   code?: ErrorCode;

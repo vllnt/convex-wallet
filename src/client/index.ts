@@ -16,7 +16,8 @@ import { DEFAULT_HISTORY_LIMIT } from "../shared.js";
 
 /**
  * The wallet component's function references, as exposed on the host via
- * `components.wallet`.
+ * `components.wallet` (or the name passed to `app.use`). Pass it to
+ * `new Wallet(...)`.
  */
 export interface WalletComponent {
   mutations: {
@@ -104,11 +105,18 @@ interface RunMutationCtx {
  * Stripe purchase, then passes an opaque `subjectRef` and a `currency` string
  * in. The client injects each currency's `regen` rule and `max` ceiling per
  * call; the component reads the server clock (`Date.now()`) itself.
+ *
+ * @see https://oss.vllnt.com/packages/convex-wallet
  */
 export class Wallet {
   private readonly currencies: Record<string, CurrencyConfig>;
   private readonly defaultHistoryLimit: number;
 
+  /**
+   * @param component - The mounted component, e.g. `components.wallet`.
+   * @param options - Per-currency `regen` / `max` rules and the default
+   *   `history` page size (`50`).
+   */
   constructor(
     private readonly component: WalletComponent,
     options: WalletOptions = {},
@@ -136,7 +144,13 @@ export class Wallet {
     return Object.keys(out).length === 0 ? undefined : out;
   }
 
-  /** Credit `amount` of `currency` to `subjectRef`. Returns the new balance. */
+  /**
+   * Credit `amount` of `currency` to `subjectRef`, clamped to the currency's
+   * `max`. Returns the new balance. A replayed `opts.idempotencyKey` for the
+   * same subject and currency returns the current balance and credits nothing.
+   * Throws `INVALID_AMOUNT`, `INVALID_ARGUMENT`, `INVALID_MAX`,
+   * `BALANCE_OVERFLOW`, `IDEMPOTENCY_KEY_REUSED` or `INVALID_REGEN`.
+   */
   earn(
     ctx: RunMutationCtx,
     subjectRef: string,
@@ -159,6 +173,7 @@ export class Wallet {
   /**
    * Idempotent grant — credit only once per `idempotencyKey`. Use after the
    * host has verified an IAP / Stripe purchase. Returns the new balance.
+   * Same errors as {@link Wallet.earn}.
    */
   grant(
     ctx: RunMutationCtx,
@@ -176,6 +191,9 @@ export class Wallet {
    * When `opts.idempotencyKey` is supplied and already recorded for this
    * `(subjectRef, currency)`, this is a no-op replay — the current
    * (regen-aware) balance is returned without a second debit or ledger row.
+   * Returns `{ ok: false, code: "INSUFFICIENT" }` when the balance is short.
+   * Throws `INVALID_AMOUNT`, `INVALID_ARGUMENT`, `IDEMPOTENCY_KEY_REUSED` or
+   * `INVALID_REGEN`.
    */
   spend(
     ctx: RunMutationCtx,
@@ -195,7 +213,13 @@ export class Wallet {
     });
   }
 
-  /** Move `amount` of `currency` from `fromRef` to `toRef` in one transaction. */
+  /**
+   * Move `amount` of `currency` from `fromRef` to `toRef` in one transaction;
+   * the receiver's credit is clamped to `max`. Returns the sender's balance, or
+   * `{ ok: false, code }` with `INSUFFICIENT` or `SELF_TRANSFER`. Has no
+   * idempotency key. Throws `INVALID_AMOUNT`, `INVALID_ARGUMENT`, `INVALID_MAX`,
+   * `BALANCE_OVERFLOW` or `INVALID_REGEN`.
+   */
   transfer(
     ctx: RunMutationCtx,
     fromRef: string,
@@ -215,7 +239,11 @@ export class Wallet {
     });
   }
 
-  /** Regen-aware single-currency balance for `subjectRef`. Missing → 0. */
+  /**
+   * Regen-aware single-currency balance for `subjectRef`. Missing → 0. The
+   * projected regen is not written until the next mutation. Throws
+   * `INVALID_REGEN` for an invalid regen rule.
+   */
   balance(ctx: RunQueryCtx, subjectRef: string, currency: string): Promise<number> {
     return ctx.runQuery(this.component.queries.balance, {
       subjectRef,
@@ -224,7 +252,10 @@ export class Wallet {
     });
   }
 
-  /** All currency balances held by `subjectRef`, regen-aware (matches {@link balance}). */
+  /**
+   * All currency balances held by `subjectRef`, regen-aware (matches
+   * {@link balance}). Only currencies with a stored row are listed.
+   */
   balances(ctx: RunQueryCtx, subjectRef: string): Promise<BalanceEntry[]> {
     return ctx.runQuery(this.component.queries.balances, {
       subjectRef,
@@ -232,7 +263,11 @@ export class Wallet {
     });
   }
 
-  /** Newest-first ledger history for one currency. */
+  /**
+   * Newest-first ledger history for one currency, at most `limit` rows
+   * (default `defaultHistoryLimit`). Throws `INVALID_LIMIT` unless `limit` is
+   * an integer from 1 through 1000.
+   */
   history(
     ctx: RunQueryCtx,
     subjectRef: string,
