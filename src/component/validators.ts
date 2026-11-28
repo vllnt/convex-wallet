@@ -2,9 +2,7 @@ import { v } from "convex/values";
 
 /**
  * Optional per-call time-regen rule, injected by the client from its
- * per-currency config. The component itself is config-less. `max`, when set,
- * is the hard ceiling on stored balance for the currency — credits are clamped
- * to it (see {@link mutations}).
+ * per-currency config. The component itself is config-less.
  */
 export const regenArg = v.optional(
   v.object({
@@ -15,9 +13,9 @@ export const regenArg = v.optional(
 );
 
 /**
- * Optional per-currency hard ceiling on the stored balance. A credit that would
- * carry the balance above `max` is clamped to `max`; an `earn`/`grant`/receive
- * leg that is ALREADY at or above `max` is a no-op credit (idempotent ceiling).
+ * Optional per-currency credit cap. A credit that would carry the balance above
+ * `max` is clamped to `max`; an `earn`/`grant`/receive leg already at or above
+ * `max` adds nothing. Does not cap regen and never lowers a balance.
  */
 export const maxArg = v.optional(v.number());
 

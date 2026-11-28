@@ -14,8 +14,8 @@ earn, spend or transfer leg; regen is not ledgered). `spend` and `transfer` neve
 `{ ok: false, code: "INSUFFICIENT" | "SELF_TRANSFER" }` instead of throwing.
 Currency rules live in the client: `regen: { amount, intervalMs, cap }` refills
 lazily from the server clock, `max` clamps credits. `grant` (and `earn` or
-`spend` with `idempotencyKey`) applies once per key per subject and currency;
-`transfer` has no key. Invalid input throws: `INVALID_AMOUNT` and
+`spend` with `idempotencyKey`) applies once per key per subject and currency
+while the key is recorded (at least 7 days); `transfer` has no key. Invalid input throws: `INVALID_AMOUNT` and
 `INVALID_REGEN` as plain `Error`; `INVALID_ARGUMENT`, `INVALID_MAX`,
 `INVALID_LIMIT`, `BALANCE_OVERFLOW` and `IDEMPOTENCY_KEY_REUSED` as
 `ConvexError` with `data.code`. `history` returns at most 1000 rows (default
