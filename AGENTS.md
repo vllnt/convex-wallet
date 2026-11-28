@@ -10,8 +10,9 @@ Convex agent skills for common tasks can be installed by running `npx convex ai-
 
 `example/convex/_generated/ai/guidelines.md` is generated and git-ignored, so a fresh clone lacks
 it. Create it with `pnpm exec convex ai-files install` (no login or deployment needed), then
-delete the `CLAUDE.md` it also writes and run `git restore AGENTS.md`; if it cannot run, follow
-the Conventions section below and the code in `src/component`.
+delete the `CLAUDE.md` file and `.claude/` folder it also writes (`check:agents` fails on either)
+and run `git restore AGENTS.md`; if it cannot run, follow the Conventions section below and the
+code in `src/component`.
 
 # @vllnt/convex-wallet
 
