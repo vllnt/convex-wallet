@@ -9,6 +9,11 @@ function setup() {
   return convexTest(schema, modules);
 }
 
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
+const RETENTION_MS = 90 * DAY;
+const IDEMPOTENCY_TTL_MS = 7 * DAY;
+
 function setClock(ms: number) {
   vi.setSystemTime(new Date(ms));
 }
@@ -123,6 +128,69 @@ describe("wallet component — retention and idempotency sweep", () => {
     expect(await t.run((ctx) => ctx.db.query("ledger").collect())).toHaveLength(0);
     const after = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
     expect(after).toHaveLength(1);
+  });
+
+  test("clears every key older than the idempotency window, however large the backlog", async () => {
+    const t = setup();
+    for (let i = 0; i < 300; i++) {
+      await earn(t, "iap", `old-${i}`);
+    }
+    setClock(3 * DAY - HOUR);
+    await earn(t, "iap", "late");
+    setClock(9 * DAY);
+    await earn(t, "iap", "fresh");
+    setClock(10 * DAY);
+
+    expect(await prune(t, RETENTION_MS, IDEMPOTENCY_TTL_MS)).toEqual({ deleted: 0, expired: 256 });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const rows = await t.run((ctx) => ctx.db.query("ledger").collect());
+    const keyed = rows.filter((row) => row.idempotencyKey !== undefined);
+    expect(keyed.map((row) => row.idempotencyKey)).toEqual(["fresh"]);
+    expect(await earn(t, "iap", "late")).toEqual({ balance: 303 });
+    expect(await earn(t, "iap", "fresh")).toEqual({ balance: 303 });
+  });
+
+  test("clears keys on rows written before the noKey marker existed", async () => {
+    const t = setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 300; i++) {
+        await ctx.db.insert("ledger", {
+          subjectRef: "u",
+          currency: "coins",
+          delta: 1,
+          reason: "legacy",
+          idempotencyKey: i % 2 === 0 ? `legacy-${i}` : undefined,
+          createdAt: i,
+        });
+      }
+    });
+    setClock(10 * DAY);
+
+    expect(await prune(t, RETENTION_MS, IDEMPOTENCY_TTL_MS)).toEqual({ deleted: 0, expired: 128 });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const rows = await t.run((ctx) => ctx.db.query("ledger").collect());
+    expect(rows.filter((row) => row.idempotencyKey !== undefined)).toHaveLength(0);
+    expect(rows.every((row) => row.noKey === true)).toBe(true);
+    expect(await prune(t, RETENTION_MS, IDEMPOTENCY_TTL_MS)).toEqual({ deleted: 0, expired: 0 });
+  });
+
+  test("never revisits rows written without a key", async () => {
+    const t = setup();
+    for (let i = 0; i < 300; i++) {
+      await earn(t, `plain-${i}`);
+    }
+    await t.mutation(api.mutations.transfer, {
+      fromRef: "u",
+      toRef: "v",
+      currency: "coins",
+      amount: 1,
+      reason: "gift",
+    });
+    setClock(10 * DAY);
+    expect(await prune(t, RETENTION_MS, IDEMPOTENCY_TTL_MS)).toEqual({ deleted: 0, expired: 0 });
+    expect(await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect())).toHaveLength(0);
   });
 
   test("a partial batch schedules no continuation", async () => {

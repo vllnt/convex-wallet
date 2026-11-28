@@ -147,12 +147,13 @@ idempotent / at-least-once safe) inside the component — never the host:
 
 - deletes `ledger` rows older than the retention window
   (`DEFAULT_LEDGER_RETENTION_MS`, 90 days), bounded per run; a run that fills
-  its batch schedules an immediate continuation, so a backlog drains in one sweep
-  instead of one batch per hour;
+  its batch schedules an immediate continuation, so a backlog drains in one
+  sweep instead of one batch per hour;
 - clears the `idempotencyKey` of rows older than the idempotency window
-  (`DEFAULT_IDEMPOTENCY_TTL_MS`, 7 days), in bounded batches. A key is never
-  cleared before 7 days, and it may stay recorded until its row is deleted at
-  90 days; do not rely on it being cleared in between.
+  (`DEFAULT_IDEMPOTENCY_TTL_MS`, 7 days), in bounded batches that read only rows
+  that may still hold a key, with the same immediate continuation. A key is
+  never cleared before 7 days, and it is cleared by the first sweep after that,
+  however large the backlog.
 
 `pruneLedger` is an internal component mutation, not a host-callable API.
 Neither retention nor idempotency TTL is configurable through `WalletOptions`;
