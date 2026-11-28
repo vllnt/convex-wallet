@@ -60,9 +60,11 @@ try {
     }),
   );
   // pnpm 11 reads the build-script policy from the workspace file, pnpm 10 from package.json.
+  // No lockfile here, so the root pnpm-workspace.yaml (the 7-day release-age gate) is copied in
+  // to keep floating transitive deps off fresh releases.
   writeFileSync(
     join(temporary, "pnpm-workspace.yaml"),
-    "allowBuilds:\n  esbuild: false\n",
+    `${readFileSync(join(root, "pnpm-workspace.yaml"), "utf8")}allowBuilds:\n  esbuild: false\n`,
   );
   run("pnpm", [
     "add",

@@ -8,6 +8,12 @@ override what you may have learned about Convex from training data.
 Convex agent skills for common tasks can be installed by running `npx convex ai-files install`.
 <!-- convex-ai-end -->
 
+`example/convex/_generated/ai/guidelines.md` is generated and git-ignored, so a fresh clone lacks
+it. Create it with `pnpm exec convex ai-files install` (no login or deployment needed), then
+delete the `CLAUDE.md` file and `.claude/` folder it also writes (`check:agents` fails on either)
+and run `git restore AGENTS.md`; if it cannot run, follow the Conventions section below and the
+code in `src/component`.
+
 # @vllnt/convex-wallet
 
 TypeScript Convex component for virtual currency wallets: coin, credit and energy balances with
