@@ -1,8 +1,8 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { api, components } from "./_generated/api";
-import schema from "./schema";
-import { register } from "../../src/test";
+import { api, components } from "./_generated/api.js";
+import schema from "./schema.js";
+import { register } from "../../src/test.js";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -637,7 +637,7 @@ describe("wallet — history", () => {
     const h = await t.query(api.example.historyPlain, { subjectRef: "p1", currency: "coins" });
     expect(h).toHaveLength(1);
     expect(h[0]).toMatchObject({ delta: 1, reason: "a" });
-    expect(h[0].idempotencyKey).toBeUndefined();
+    expect(h[0]?.idempotencyKey).toBeUndefined();
   });
 });
 
