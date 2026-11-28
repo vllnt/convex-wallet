@@ -4,10 +4,22 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.1] - Unreleased
+## [0.2.0] - Unreleased
 
 ### Fixed
 
+- Idempotency keys could stay remembered for up to 90 days instead of 7. The
+  expiry sweep re-read the same oldest 256 rows aged 7 to 90 days every hour
+  (cleared rows stayed in its range) and had no continuation, so with a larger
+  backlog newer keys were not cleared until older rows aged out. The sweep now
+  reads only rows that may still hold a key, marks each one it visits, and
+  schedules an immediate continuation when its batch is full, so every key is
+  cleared by the first sweep after it turns 7 days old. Rows written before this
+  release are covered too (see Changed).
+- `register()` from `@vllnt/convex-wallet/test` accepts a host app's
+  `convexTest(hostSchema, modules)` instance. It was typed against the
+  component's own schema, so any host schema with tables of its own failed with
+  TS2345. Type-only change; runtime behaviour is unchanged.
 - The ledger retention sweep schedules an immediate continuation when a run
   fills its batch, so a backlog larger than one batch drains in one sweep
   instead of draining at most one batch per hour.
@@ -16,15 +28,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   lowered it), the credit clamped down to `max`, debiting the subject and
   writing a negative `delta`. A credit now never lowers a balance; it is a no-op
   ledger row with `delta` 0.
-- An `idempotencyKey` recorded by a credit and reused on a debit (or the
-  reverse) for the same subject and currency was treated as a replay, silently
-  skipping the second operation. It now throws `IDEMPOTENCY_KEY_REUSED`.
-- Credits that would push a balance or `lifetimeEarned` past 2^53 - 1 (where
-  numbers lose precision) throw `BALANCE_OVERFLOW`; amounts above 2^53 - 1 throw
-  `INVALID_AMOUNT`.
-- A `NaN` or negative `max` (which could store a `NaN` balance) throws
-  `INVALID_MAX`. Empty `subjectRef`, `fromRef`, `toRef`, `currency`, `reason` or
-  `idempotencyKey` throw `INVALID_ARGUMENT`.
+- **Breaking:** an `idempotencyKey` recorded by a credit and reused on a debit
+  (or the reverse) for the same subject and currency was treated as a replay,
+  silently skipping the second operation. It now throws
+  `IDEMPOTENCY_KEY_REUSED`; 0.1.0 returned success.
+- **Breaking:** credits that would push a balance or `lifetimeEarned` past
+  2^53 - 1 (where numbers lose precision) throw `BALANCE_OVERFLOW`; amounts
+  above 2^53 - 1 throw `INVALID_AMOUNT`. 0.1.0 accepted them and stored an
+  imprecise balance.
+- **Breaking:** a `NaN` or negative `max` throws `INVALID_MAX`. 0.1.0 accepted
+  it and could store a `NaN` balance.
+- **Breaking:** empty `subjectRef`, `fromRef`, `toRef`, `currency`, `reason` or
+  `idempotencyKey` on `earn`, `grant`, `spend` and `transfer` throw
+  `INVALID_ARGUMENT`. 0.1.0 accepted them, so callers passing an empty string
+  now get an error instead of success.
 - The `/test` entry type-checks for consumers using `moduleResolution`
   `nodenext` (explicit `.js` relative imports, `vite/client` types).
 
@@ -40,6 +57,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Schema (additive, no migration): `ledger` rows gain an optional `noKey` field
+  and a `by_no_key_created` index used by the idempotency-key sweep. New rows
+  written without a key get `noKey: true`; rows written before this release have
+  no `noKey`, so the sweep visits each of them once and marks it, clearing any
+  key it still holds. Existing deployments keep working without a backfill. On
+  upgrade, the first sweep clears keys aged 7 to 90 days that were still being
+  honoured, and the first deploy builds the new index, which takes longer on a
+  large ledger.
+- **Breaking:** `engines.node` is `>=20` (was `>=18`). The lowest supported
+  `convex` peer (1.45) already requires Node 20, so Node 18 never worked.
+- Removed `llms-full.txt` from the repository; `llms.txt` is the single index.
+  It was never part of the npm package.
+- `typecheck:ci` (run by CI and publish) also type-checks the component, the
+  `/test` entry, the example host app and every test file. The example app's
+  relative imports now carry explicit `.js` extensions.
+- The package-contents checker also rejects packed `.spec.mts` and `.spec.cts`
+  files, and its own test suite (`scripts/test-check-package-contents.sh`) now
+  runs in CI and in the publish quality gate.
 - Test files are no longer included in the published package.
 - `homepage` points to https://oss.vllnt.com/packages/convex-wallet; more
   `keywords`.

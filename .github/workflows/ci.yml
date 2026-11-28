@@ -62,6 +62,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # Enforces the 100% coverage gate (thresholds live in vitest.config.mts).
       - run: pnpm test:coverage
+      - run: bash scripts/test-check-package-contents.sh
 
   build:
     name: Build

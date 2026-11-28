@@ -159,6 +159,7 @@ export const earn = mutation({
       reason: args.reason,
       idempotencyKey: args.idempotencyKey,
       createdAt: now,
+      noKey: args.idempotencyKey === undefined ? true : undefined,
     });
     return { balance };
   },
@@ -231,6 +232,7 @@ export const spend = mutation({
       reason: args.reason,
       idempotencyKey: args.idempotencyKey,
       createdAt: now,
+      noKey: args.idempotencyKey === undefined ? true : undefined,
     });
     return { ok: true, balance };
   },
@@ -300,6 +302,7 @@ export const transfer = mutation({
       delta: -args.amount,
       reason: args.reason,
       createdAt: now,
+      noKey: true,
     });
 
     const toRow = await ctx.db
@@ -337,6 +340,7 @@ export const transfer = mutation({
       delta: receiverDelta,
       reason: args.reason,
       createdAt: now,
+      noKey: true,
     });
     return { ok: true, balance: fromBalance };
   },

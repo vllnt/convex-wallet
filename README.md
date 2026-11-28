@@ -52,7 +52,7 @@ installed version. Read them before writing code against this package.
 pnpm add @vllnt/convex-wallet
 ```
 
-Node.js >=18; required peer: `convex@^1.45.0`. React >=18 is optional. The
+Node.js >=20; required peer: `convex@^1.45.0`. React >=18 is optional. The
 default npm channel is stable; `@vllnt/convex-wallet@canary` carries unreleased
 changes from `main`. The docs in each package describe that package's version.
 
@@ -113,8 +113,10 @@ mounting, run `pnpm convex dev` to generate the host's `components` references.
 `defaultHistoryLimit` (default `50`, integer 1–1000). Currency rules accept
 optional `regen: { amount, intervalMs, cap }` and `max`. There are no client
 retention or idempotency-TTL options. The internal hourly sweep uses 90-day
-ledger retention and a 7-day key-expiry threshold; bounded cleanup may lag those
-thresholds. Replay protection ends when the key or ledger row is removed.
+ledger retention and a 7-day key-expiry threshold: each key is cleared by the
+first sweep after it turns 7 days old, however large the backlog, so expiry lags
+the threshold by up to about one hour (plus drain time on the first sweep after
+upgrading). Replay protection ends when the key or ledger row is removed.
 Earn/grant and spend share keys per subject/currency; transfer has no replay
 key.
 
@@ -198,8 +200,9 @@ delivery.
 ### Testing your app
 
 `@vllnt/convex-wallet/test` exports `register(t, name = "wallet")` to mount the
-component in a `convex-test` instance. It needs `convex-test` and `vitest` (with
-Vite's `import.meta.glob`) in the consuming app:
+component in a `convex-test` instance built from your app's own schema (with or
+without tables of its own). It needs `convex-test` and `vitest` (with Vite's
+`import.meta.glob`) in the consuming app:
 
 ```ts
 /// <reference types="vite/client" />

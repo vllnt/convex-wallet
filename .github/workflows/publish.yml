@@ -46,6 +46,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck:ci
       - run: pnpm test:coverage
+      - run: bash scripts/test-check-package-contents.sh
       - run: pnpm build
 
   canary:

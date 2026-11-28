@@ -1,6 +1,6 @@
 {
   "name": "@vllnt/convex-wallet",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Consumable balances and economy ledger with atomic spend and lazy regen, as a Convex component",
   "license": "MIT",
   "type": "module",
@@ -47,7 +47,7 @@
     "build:codegen": "pnpm codegen && pnpm build",
     "build:clean": "rm -rf dist *.tsbuildinfo && pnpm build:codegen",
     "typecheck": "tsc --noEmit --incremental --tsBuildInfoFile node_modules/.cache/tsc/typecheck.tsbuildinfo",
-    "typecheck:ci": "tsc --noEmit --incremental --tsBuildInfoFile node_modules/.cache/tsc/typecheck-ci.tsbuildinfo --project tsconfig.ci.json",
+    "typecheck:ci": "tsc --noEmit --incremental --tsBuildInfoFile node_modules/.cache/tsc/typecheck-ci.tsbuildinfo --project tsconfig.ci.json && tsc --noEmit --incremental --tsBuildInfoFile node_modules/.cache/tsc/typecheck-test.tsbuildinfo --project tsconfig.test.json",
     "lint": "pnpm check:agents && eslint --cache --cache-location node_modules/.cache/eslint/ .",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest --typecheck --clearScreen false",
@@ -103,7 +103,7 @@
     "url": "https://github.com/vllnt/convex-wallet"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "publishConfig": {
     "access": "public"

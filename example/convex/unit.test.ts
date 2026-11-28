@@ -10,8 +10,8 @@ import {
   ERROR_CODES,
   INVALID_AMOUNT,
   INVALID_REGEN,
-} from "../../src/shared";
-import crons from "../../src/component/crons";
+} from "../../src/shared.js";
+import crons from "../../src/component/crons.js";
 
 describe("applyRegen — all branches", () => {
   test("no regen config → unchanged", () => {
@@ -156,8 +156,8 @@ test("component registers the retention/idempotency prune cron", () => {
   const jobs = Object.values(crons.crons);
   expect(jobs).toHaveLength(1);
   const [job] = jobs;
-  expect(job.schedule).toEqual({ type: "interval", hours: 1 });
-  expect(job.args).toEqual([
+  expect(job?.schedule).toEqual({ type: "interval", hours: 1 });
+  expect(job?.args).toEqual([
     {
       retentionMs: DEFAULT_LEDGER_RETENTION_MS,
       idempotencyTtlMs: DEFAULT_IDEMPOTENCY_TTL_MS,

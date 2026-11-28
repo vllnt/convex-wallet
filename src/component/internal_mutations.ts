@@ -7,15 +7,20 @@ const PRUNE_BATCH = 256;
 
 /**
  * Idempotent retention + idempotency sweep, driven by the component's own cron
- * (see {@link crons}). One bounded batch per call:
+ * (see {@link crons}). One bounded batch of at most `PRUNE_BATCH` rows per call:
  *
- * 1. Delete `ledger` rows older than `retentionMs` (oldest-first, ≤ `PRUNE_BATCH`).
- * 2. For surviving rows older than `idempotencyTtlMs`, clear `idempotencyKey` so
- *    the key is forgotten and may be reused — the idempotency window.
+ * 1. Delete `ledger` rows older than `retentionMs` (oldest-first).
+ * 2. With the rest of the batch, clear `idempotencyKey` on rows older than
+ *    `idempotencyTtlMs` so the key is forgotten and may be reused — the
+ *    idempotency window. Only rows that may still hold a key are read
+ *    (`by_no_key_created`, `noKey` absent); each is marked `noKey: true`, so it
+ *    leaves that range and the next batch reaches newer rows.
  *
- * At-least-once safe: deleting an already-gone row and clearing an already-clear
- * key are both no-ops, so a redelivered run converges to the same state. Returns
- * counts for observability/testing.
+ * A call that fills its batch schedules an immediate continuation, so any
+ * backlog drains in one sweep. At-least-once safe: deleting an already-gone
+ * row and clearing an already-clear key are both no-ops, so a redelivered run
+ * converges to the same state. Returns counts for observability/testing;
+ * `expired` counts cleared keys only.
  */
 export const pruneLedger = internalMutation({
   args: {
@@ -38,23 +43,28 @@ export const pruneLedger = internalMutation({
     }
 
     let expired = 0;
+    let visited = 0;
     if (oldest.length < PRUNE_BATCH) {
       const stale = await ctx.db
         .query("ledger")
-        .withIndex("by_created", (q) =>
-          q.gte("createdAt", deleteBefore).lt("createdAt", expireBefore),
+        .withIndex("by_no_key_created", (q) =>
+          q
+            .eq("noKey", undefined)
+            .gte("createdAt", deleteBefore)
+            .lt("createdAt", expireBefore),
         )
         .order("asc")
         .take(PRUNE_BATCH - oldest.length);
       for (const row of stale) {
         if (row.idempotencyKey !== undefined) {
-          await ctx.db.patch("ledger", row._id, { idempotencyKey: undefined });
           expired += 1;
         }
+        await ctx.db.patch("ledger", row._id, { idempotencyKey: undefined, noKey: true });
       }
+      visited = stale.length;
     }
 
-    if (oldest.length === PRUNE_BATCH) {
+    if (oldest.length + visited === PRUNE_BATCH) {
       await ctx.scheduler.runAfter(0, internal.internal_mutations.pruneLedger, args);
     }
 
